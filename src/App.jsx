@@ -1,1 +1,1142 @@
+import { useState, useMemo } from "react";
+import {
+  AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell
+} from "recharts";
+import {
+  Home, List, Building2, FolderOpen, BarChart2, Settings,
+  Plus, X, ChevronDown, Upload, Search, Edit2, Save, Trash2,
+  ExternalLink, DollarSign, TrendingUp, TrendingDown, CheckSquare,
+  Square, Link, RefreshCw, Check, AlertTriangle, Tag, Calendar
+} from "lucide-react";
 
+// ─── CONSTANTS ────────────────────────────────────────────────────────────────
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const FULL_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const CURRENT_MONTH = 4; // 0-indexed May
+const STATUS_COLORS = { planned: 'text-sky-400 bg-sky-400/10 border-sky-400/30', active: 'text-amber-400 bg-amber-400/10 border-amber-400/30', complete: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/30' };
+
+// ─── INITIAL CATEGORIES ───────────────────────────────────────────────────────
+const INIT_CATEGORIES = {
+  'Income': ['Knauf Pay 15th','Knauf Pay 30th','Extra Income'],
+  'Savings': ['Norah 529','Aubrey 529','Carson 529','Norah Schwab','Aubrey Schwab','Carson Schwab','Schwab','Capital One'],
+  'Fixed Spending': ['Duke Energy','NewRez Mortgage','Vectren (Gas)','Citizens (Water)','Fishers (Sewer / Trash)','Netflix','Hulu TV','Spotify',"Cooper's Hawk",'Apple iCloud Storage','Google Photo Backup','Simplisafe Alarm','Metronet','Auto Loan','Cell Phone','Mohela','Banner Life','Genworth','SBLI Life Insurace'],
+  'Variable Spending': ['Alcohol & Bars','Annual Fees','Auto: Gas','Auto: Maintenance, Car Wash, etc','Auto: Registration & Insurance','Cash','Clothing','Medical - Doctors, Prescription','Medical - Pharmacy / Non-Prescription','Educational Expenses','Electronics & Computer Related','Lawn & Garden','Music, Apps, Movies, Photobooks','Gifts Given, Birthday Parties','Groceries','Home Furnishings','Home Repair & Improvement','Home Supplies','Kids Activities - Enrollement Fees','Personal Care - Toiletries & Makeup','Personal Care - Hair Cuts, Nails','Restaurants & Lunch Money','Family & Kids Activities','Travel','Haddie Mae','Savings Supplement'],
+};
+
+// ─── MONTHLY BUDGETS (per subcategory) ────────────────────────────────────────
+const INIT_BUDGETS = {
+  'Knauf Pay 15th':6446,'Knauf Pay 30th':6446,'Extra Income':0,
+  'Norah 529':210,'Aubrey 529':210,'Carson 529':210,'Norah Schwab':50,'Aubrey Schwab':50,'Carson Schwab':50,'Schwab':1000,'Capital One':0,
+  'Duke Energy':150,'NewRez Mortgage':1884,'Vectren (Gas)':130,'Citizens (Water)':55,'Fishers (Sewer / Trash)':65,'Netflix':20,'Hulu TV':95,'Spotify':22,"Cooper's Hawk":25,'Apple iCloud Storage':10,'Google Photo Backup':3,'Simplisafe Alarm':33,'Metronet':83,'Auto Loan':940,'Cell Phone':142,'Mohela':160,'Banner Life':40,'Genworth':45,'SBLI Life Insurace':51,
+  'Groceries':900,'Restaurants & Lunch Money':450,'Kids Activities - Enrollement Fees':1500,'Auto: Gas':380,'Family & Kids Activities':400,'Clothing':300,'Gifts Given, Birthday Parties':200,'Travel':300,'Home Furnishings':350,'Home Repair & Improvement':150,'Home Supplies':120,'Medical - Doctors, Prescription':150,'Alcohol & Bars':80,'Auto: Maintenance, Car Wash, etc':100,'Auto: Registration & Insurance':100,'Personal Care - Toiletries & Makeup':80,'Personal Care - Hair Cuts, Nails':80,'Educational Expenses':100,'Electronics & Computer Related':80,'Music, Apps, Movies, Photobooks':50,'Annual Fees':0,'Haddie Mae':150,'Cash':50,'Lawn & Garden':50,'Medical - Pharmacy / Non-Prescription':50,'Savings Supplement':0,
+};
+
+// ─── 2026 MONTHLY ACTUALS (Jan–May filled from spreadsheet) ──────────────────
+const ACTUALS_2026 = {
+  Income: {
+    'Knauf Pay 15th': [6021.86,6021.88,5496.86,6206.25,6206.24,0,0,0,0,0,0,0],
+    'Knauf Pay 30th': [6021.88,6546.88,6021.87,6206.25,6206.24,0,0,0,0,0,0,0],
+    'Extra Income':   [45,44.60,19772.82,200,14.14,0,0,0,0,0,0,0],
+  },
+  Savings: {
+    'Norah 529':    [210,210,210,0,0,0,0,0,0,0,0,0],
+    'Aubrey 529':   [210,210,210,0,0,0,0,0,0,0,0,0],
+    'Carson 529':   [210,210,210,0,0,0,0,0,0,0,0,0],
+    'Norah Schwab': [50,50,50,0,0,0,0,0,0,0,0,0],
+    'Aubrey Schwab':[50,50,50,0,0,0,0,0,0,0,0,0],
+    'Carson Schwab':[50,50,50,0,0,0,0,0,0,0,0,0],
+    'Schwab':       [1000,1000,1000,0,0,0,0,0,0,0,0,0],
+    'Capital One':  [0,0,13000,0,0,0,0,0,0,0,0,0],
+  },
+  'Fixed Spending': {
+    'Duke Energy':             [128.57,173.81,148.75,146.93,144.28,139.53,0,0,0,0,0,0],
+    'NewRez Mortgage':         [1884.16,1884.16,1884.16,1884.16,1884.16,0,0,0,0,0,0,0],
+    'Vectren (Gas)':           [165.96,187.52,234.91,148.68,95.81,79.52,0,0,0,0,0,0],
+    'Citizens (Water)':        [44.54,64.18,52.69,56.56,48.81,0,0,0,0,0,0,0],
+    'Fishers (Sewer / Trash)': [59.18,59.18,68.11,68.11,68.11,0,0,0,0,0,0,0],
+    'Netflix':                 [17.99,17.99,17.99,17.99,19.99,0,0,0,0,0,0,0],
+    'Hulu TV':                 [94.99,94.99,94.99,94.99,94.99,0,0,0,0,0,0,0],
+    'Spotify':                 [19.99,19.99,21.99,21.99,21.99,0,0,0,0,0,0,0],
+    "Cooper's Hawk":           [24.49,24.49,24.49,24.49,24.49,0,0,0,0,0,0,0],
+    'Apple iCloud Storage':    [9.99,9.99,9.99,9.99,9.99,0,0,0,0,0,0,0],
+    'Google Photo Backup':     [2.99,2.99,2.99,2.99,2.99,0,0,0,0,0,0,0],
+    'Simplisafe Alarm':        [32.99,32.99,32.99,32.99,32.99,0,0,0,0,0,0,0],
+    'Metronet':                [82.90,82.90,82.90,82.90,82.90,0,0,0,0,0,0,0],
+    'Auto Loan':               [748.60,748.60,0,940.36,940.36,940.36,940.36,940.36,940.36,940.36,940.36,940.36],
+    'Cell Phone':              [142,121,142,142,142,0,0,0,0,0,0,0],
+    'Mohela':                  [0,0,0,0,0,0,0,0,0,0,0,0],
+    'Banner Life':             [40.03,40.03,40.03,40.03,40.03,0,0,0,0,0,0,0],
+    'Genworth':                [45.03,45.03,45.03,45.03,45.03,0,0,0,0,0,0,0],
+    'SBLI Life Insurace':      [50.46,50.46,50.46,50.46,50.46,0,0,0,0,0,0,0],
+  },
+  'Variable Spending': {
+    'Alcohol & Bars':                   [84.16,7.73,46.41,99.51,43.70,0,0,0,0,0,0,0],
+    'Annual Fees':                      [475,95,95,0,0,0,0,0,0,0,0,0],
+    'Auto: Gas':                        [311.83,244.49,521.73,314.01,400.07,0,0,0,0,0,0,0],
+    'Auto: Maintenance, Car Wash, etc': [91,60.74,64.96,34,0,0,0,0,0,0,0,0],
+    'Auto: Registration & Insurance':   [731.24,0,149.43,1100,0,0,0,0,0,0,0,0],
+    'Cash':                             [0,0,0,0,60,0,0,0,0,0,0,0],
+    'Clothing':                         [219.04,214.80,440.34,515.67,278.60,0,0,0,0,0,0,0],
+    'Medical - Doctors, Prescription':  [225.30,37,50,202.88,10,0,0,0,0,0,0,0],
+    'Medical - Pharmacy / Non-Prescription':[0,0,0,0,0,0,0,0,0,0,0,0],
+    'Educational Expenses':             [121.70,350.91,78.11,78.11,10.85,0,0,0,0,0,0,0],
+    'Electronics & Computer Related':   [0,59.91,57.65,0,0,0,0,0,0,0,0,0],
+    'Lawn & Garden':                    [0,0,0,0,0,0,0,0,0,0,0,0],
+    'Music, Apps, Movies, Photobooks':  [52.18,25.88,25.88,68.67,36.87,25.88,25.88,25.88,25.88,25.88,25.88,25.88],
+    'Gifts Given, Birthday Parties':    [37.09,120.25,556.52,359.85,162.92,0,0,0,0,0,0,0],
+    'Groceries':                        [938.43,680.15,975.99,573.61,610.29,0,0,0,0,0,0,0],
+    'Home Furnishings':                 [111.82,880.45,1398.09,185.17,723.01,175,175,86.93,0,0,0,0],
+    'Home Repair & Improvement':        [107.68,56.04,27.66,601.17,11.83,0,0,0,0,0,0,0],
+    'Home Supplies':                    [134.60,87.36,198.16,85.50,57.07,0,0,0,0,0,0,0],
+    'Kids Activities - Enrollement Fees':[2056.22,2018,1826.75,1599.84,2575.95,280,0,0,0,0,0,0],
+    'Personal Care - Toiletries & Makeup':[108.61,216,62.74,56.39,49.15,0,0,0,0,0,0,0],
+    'Personal Care - Hair Cuts, Nails': [109,25,234,0,97.20,0,0,0,0,0,0,0],
+    'Restaurants & Lunch Money':        [669.84,393.22,364.75,218.41,243.24,0,0,0,0,0,0,0],
+    'Family & Kids Activities':         [372.40,166.93,425.96,668.99,170.12,0,0,0,0,0,0,0],
+    'Travel':                           [0,4.84,109.09,822.76,832.10,0,0,0,0,0,0,0],
+    'Haddie Mae':                       [1140.08,33.41,153.77,819.44,152.05,0,0,0,0,0,0,0],
+    'Savings Supplement':               [0,0,0,0,0,0,0,0,0,0,0,0],
+  }
+};
+
+// ─── 2025 ANNUAL DATA FOR YOY ─────────────────────────────────────────────────
+const DATA_2025 = {
+  income:       [10219.27,11974.79,34447.15,14835.79,12516.78,11974.80,12036.16,12208.43,12970.23,13255.72,13095.68,14801.15],
+  expenditures: [12025,11825,11980,12480,12480,12480,12398.33,11619.14,12177.03,12923.39,10723.10,10988.52],
+  savings:      [1125,1125,1280,1780,1780,1780,1780,1780,2180,2130,1780,1780],
+};
+
+const VAR_2025 = {
+  'Auto: Gas':1920.68,'Groceries':3929.15,'Restaurants & Lunch Money':2222.15,'Kids Activities - Enrollement Fees':7833.12,
+  'Family & Kids Activities':2480.52,'Clothing':1873.72,'Gifts Given, Birthday Parties':1883.14,'Travel':4116.18,
+  'Home Furnishings':1466.09,'Home Repair & Improvement':742.52,'Medical - Doctors, Prescription':1652.64,
+  'Alcohol & Bars':276.65,'Electronics & Computer Related':534.81,'Personal Care - Toiletries & Makeup':444.98,
+  'Personal Care - Hair Cuts, Nails':427,'Haddie Mae':638.10,'Educational Expenses':1512.80,
+};
+
+// ─── INITIAL PROJECTS ─────────────────────────────────────────────────────────
+const INIT_PROJECTS = [
+  {id:1,name:'Radon System',year:2025,budgeted:2000,actual:2000,status:'complete',description:''},
+  {id:2,name:'Living Room Couch & Chairs',year:2025,budgeted:6802.44,actual:6802.44,status:'complete',description:''},
+  {id:3,name:'Outdoor Couch (2025)',year:2025,budgeted:1140,actual:1140,status:'complete',description:'Apr–Dec 2025'},
+  {id:4,name:'Exterior Painting',year:2025,budgeted:7529.16,actual:7529.16,status:'complete',description:''},
+  {id:5,name:'Porch Screens',year:2025,budgeted:300,actual:300,status:'complete',description:''},
+  {id:6,name:'Van Tires',year:2025,budgeted:859.46,actual:859.46,status:'complete',description:''},
+  {id:7,name:'Computer',year:2025,budgeted:738.28,actual:738.28,status:'complete',description:''},
+  {id:8,name:'Josh Project 2025',year:2025,budgeted:4262.50,actual:4262.50,status:'complete',description:'Jun–Dec 2025'},
+  {id:9,name:"Norah's Knee",year:2025,budgeted:3216.87,actual:3216.87,status:'complete',description:'Sep–Nov 2025'},
+  {id:10,name:'Spring Break 2025 (Flights + Deposit)',year:2025,budgeted:883.40,actual:883.40,status:'complete',description:''},
+  {id:11,name:'Haddie Mae 2025',year:2025,budgeted:3750,actual:3750,status:'complete',description:''},
+  {id:12,name:'Outdoor Couch (2026)',year:2026,budgeted:2000,actual:0,status:'active',description:'Jan–May 2026'},
+  {id:13,name:'Josh Project 2026',year:2026,budgeted:2604,actual:0,status:'active',description:''},
+  {id:14,name:'Family Room Lights & Painting',year:2026,budgeted:3117.47,actual:3117.47,status:'complete',description:'January 2026'},
+  {id:15,name:'Spring Break 2026 Hotel',year:2026,budgeted:5758,actual:5758,status:'complete',description:'February 2026'},
+  {id:16,name:'D2 Summit (House + Flights + Rental Car)',year:2026,budgeted:2331.78,actual:0,status:'active',description:'May 2026'},
+  {id:17,name:'Basketball Hoop',year:2026,budgeted:2022.25,actual:2022.25,status:'complete',description:'April 2026'},
+];
+
+// ─── INITIAL TRANSACTIONS (seeded from spreadsheet) ───────────────────────────
+let _nextId = 50;
+const newId = () => _nextId++;
+const INIT_TRANSACTIONS = [
+  // Income 2026
+  {id:1,date:'2026-01-15',description:'Knauf Pay 15th',amount:6021.86,category:'Income',subCategory:'Knauf Pay 15th',notes:'',isKnauf:false,projectId:null},
+  {id:2,date:'2026-01-31',description:'Knauf Pay 30th',amount:6021.88,category:'Income',subCategory:'Knauf Pay 30th',notes:'',isKnauf:false,projectId:null},
+  {id:3,date:'2026-01-02',description:'Extra Income',amount:45,category:'Income',subCategory:'Extra Income',notes:'',isKnauf:false,projectId:null},
+  {id:4,date:'2026-02-15',description:'Knauf Pay 15th',amount:6021.88,category:'Income',subCategory:'Knauf Pay 15th',notes:'',isKnauf:false,projectId:null},
+  {id:5,date:'2026-02-28',description:'Knauf Pay 30th',amount:6546.88,category:'Income',subCategory:'Knauf Pay 30th',notes:'',isKnauf:false,projectId:null},
+  {id:6,date:'2026-02-10',description:'Extra Income',amount:44.60,category:'Income',subCategory:'Extra Income',notes:'FSA',isKnauf:false,projectId:null},
+  {id:7,date:'2026-03-15',description:'Knauf Pay 15th',amount:5496.86,category:'Income',subCategory:'Knauf Pay 15th',notes:'',isKnauf:false,projectId:null},
+  {id:8,date:'2026-03-31',description:'Knauf Pay 30th',amount:6021.87,category:'Income',subCategory:'Knauf Pay 30th',notes:'',isKnauf:false,projectId:null},
+  {id:9,date:'2026-03-21',description:'Annual Bonus',amount:19772.82,category:'Income',subCategory:'Extra Income',notes:'Annual Bonus',isKnauf:false,projectId:null},
+  {id:10,date:'2026-04-15',description:'Knauf Pay 15th',amount:6206.25,category:'Income',subCategory:'Knauf Pay 15th',notes:'',isKnauf:false,projectId:null},
+  {id:11,date:'2026-04-30',description:'Knauf Pay 30th',amount:6206.25,category:'Income',subCategory:'Knauf Pay 30th',notes:'',isKnauf:false,projectId:null},
+  {id:12,date:'2026-04-15',description:'Extra Income',amount:200,category:'Income',subCategory:'Extra Income',notes:'',isKnauf:false,projectId:null},
+  {id:13,date:'2026-05-15',description:'Knauf Pay 15th',amount:6206.24,category:'Income',subCategory:'Knauf Pay 15th',notes:'',isKnauf:false,projectId:null},
+  {id:14,date:'2026-05-31',description:'Knauf Pay 30th',amount:6206.24,category:'Income',subCategory:'Knauf Pay 30th',notes:'',isKnauf:false,projectId:null},
+  {id:15,date:'2026-05-10',description:'Extra Income',amount:14.14,category:'Income',subCategory:'Extra Income',notes:'FSA',isKnauf:false,projectId:null},
+  // Fixed Jan-May
+  {id:16,date:'2026-01-01',description:'Duke Energy',amount:128.57,category:'Fixed Spending',subCategory:'Duke Energy',notes:'',isKnauf:false,projectId:null},
+  {id:17,date:'2026-01-01',description:'NewRez Mortgage',amount:1884.16,category:'Fixed Spending',subCategory:'NewRez Mortgage',notes:'',isKnauf:false,projectId:null},
+  {id:18,date:'2026-01-15',description:'Vectren Gas',amount:165.96,category:'Fixed Spending',subCategory:'Vectren (Gas)',notes:'',isKnauf:false,projectId:null},
+  {id:19,date:'2026-01-15',description:'Auto Loan',amount:748.60,category:'Fixed Spending',subCategory:'Auto Loan',notes:'',isKnauf:false,projectId:null},
+  {id:20,date:'2026-02-01',description:'Duke Energy',amount:173.81,category:'Fixed Spending',subCategory:'Duke Energy',notes:'',isKnauf:false,projectId:null},
+  {id:21,date:'2026-02-01',description:'NewRez Mortgage',amount:1884.16,category:'Fixed Spending',subCategory:'NewRez Mortgage',notes:'',isKnauf:false,projectId:null},
+  {id:22,date:'2026-03-01',description:'Duke Energy',amount:148.75,category:'Fixed Spending',subCategory:'Duke Energy',notes:'',isKnauf:false,projectId:null},
+  {id:23,date:'2026-03-01',description:'NewRez Mortgage',amount:1884.16,category:'Fixed Spending',subCategory:'NewRez Mortgage',notes:'',isKnauf:false,projectId:null},
+  {id:24,date:'2026-04-01',description:'Duke Energy',amount:146.93,category:'Fixed Spending',subCategory:'Duke Energy',notes:'',isKnauf:false,projectId:null},
+  {id:25,date:'2026-04-01',description:'NewRez Mortgage',amount:1884.16,category:'Fixed Spending',subCategory:'NewRez Mortgage',notes:'',isKnauf:false,projectId:null},
+  {id:26,date:'2026-04-15',description:'Auto Loan',amount:940.36,category:'Fixed Spending',subCategory:'Auto Loan',notes:'',isKnauf:false,projectId:null},
+  {id:27,date:'2026-05-01',description:'Duke Energy',amount:144.28,category:'Fixed Spending',subCategory:'Duke Energy',notes:'',isKnauf:false,projectId:null},
+  {id:28,date:'2026-05-01',description:'NewRez Mortgage',amount:1884.16,category:'Fixed Spending',subCategory:'NewRez Mortgage',notes:'',isKnauf:false,projectId:null},
+  {id:29,date:'2026-05-15',description:'Auto Loan',amount:940.36,category:'Fixed Spending',subCategory:'Auto Loan',notes:'',isKnauf:false,projectId:null},
+  // Variable - key items
+  {id:30,date:'2026-01-08',description:'Kroger',amount:187.50,category:'Variable Spending',subCategory:'Groceries',notes:'',isKnauf:false,projectId:null},
+  {id:31,date:'2026-01-14',description:'Meijer',amount:234.80,category:'Variable Spending',subCategory:'Groceries',notes:'',isKnauf:false,projectId:null},
+  {id:32,date:'2026-01-20',description:'Deveaus Tumbling',amount:320,category:'Variable Spending',subCategory:'Kids Activities - Enrollement Fees',notes:'Norah tumbling class',isKnauf:false,projectId:null},
+  {id:33,date:'2026-01-15',description:'Cheer - D2 Competition',amount:1140.08,category:'Variable Spending',subCategory:'Haddie Mae',notes:'',isKnauf:false,projectId:null},
+  {id:34,date:'2026-01-10',description:'Cheer Enrollment',amount:1590,category:'Variable Spending',subCategory:'Kids Activities - Enrollement Fees',notes:'Norah cheer season',isKnauf:false,projectId:null},
+  {id:35,date:'2026-01-05',description:'Kroger',amount:516.13,category:'Variable Spending',subCategory:'Groceries',notes:'',isKnauf:false,projectId:null},
+  {id:36,date:'2026-02-01',description:'Spring Break Hotel',amount:5758,category:'Variable Spending',subCategory:'Travel',notes:'Spring Break Hotel',isKnauf:false,projectId:15},
+  {id:37,date:'2026-02-10',description:'Kroger',amount:394.60,category:'Variable Spending',subCategory:'Groceries',notes:'',isKnauf:false,projectId:null},
+  {id:38,date:'2026-02-15',description:'Kids Tumbling',amount:320,category:'Variable Spending',subCategory:'Kids Activities - Enrollement Fees',notes:'Deveaus tumbling',isKnauf:false,projectId:null},
+  {id:39,date:'2026-03-10',description:'Kroger',amount:520.00,category:'Variable Spending',subCategory:'Groceries',notes:'',isKnauf:false,projectId:null},
+  {id:40,date:'2026-03-15',description:'Family Room Paint',amount:3117.47,category:'Variable Spending',subCategory:'Home Furnishings',notes:'Family Room Lights & Painting',isKnauf:false,projectId:14},
+  {id:41,date:'2026-03-20',description:'Target - Clothing',amount:219.04,category:'Variable Spending',subCategory:'Clothing',notes:'',isKnauf:false,projectId:null},
+  {id:42,date:'2026-04-01',description:'Basketball Hoop',amount:2022.25,category:'Variable Spending',subCategory:'Home Furnishings',notes:'Basketball Hoop installation',isKnauf:false,projectId:17},
+  {id:43,date:'2026-04-10',description:'Kroger',amount:310.20,category:'Variable Spending',subCategory:'Groceries',notes:'',isKnauf:false,projectId:null},
+  {id:44,date:'2026-04-15',description:'Kids Baseball',amount:599.84,category:'Variable Spending',subCategory:'Kids Activities - Enrollement Fees',notes:'Carson baseball',isKnauf:false,projectId:null},
+  {id:45,date:'2026-05-05',description:'D2 Summit Hotel',amount:1200,category:'Variable Spending',subCategory:'Travel',notes:'D2 Summit accommodations',isKnauf:false,projectId:16},
+  {id:46,date:'2026-05-10',description:'D2 Summit Flights',amount:831.78,category:'Variable Spending',subCategory:'Travel',notes:'D2 Summit flights',isKnauf:false,projectId:16},
+  {id:47,date:'2026-05-12',description:'Kids Tumbling',amount:320,category:'Variable Spending',subCategory:'Kids Activities - Enrollement Fees',notes:'Norah tumbling',isKnauf:false,projectId:null},
+  {id:48,date:'2026-05-08',description:'Cheer Competition',amount:152.05,category:'Variable Spending',subCategory:'Haddie Mae',notes:'',isKnauf:false,projectId:null},
+  // Knauf expenses
+  {id:100,date:'2026-01-02',description:'Apple (Work)',amount:21.39,category:'Fixed Spending',subCategory:'Apple iCloud Storage',notes:'Work subscription',isKnauf:true,projectId:null},
+  {id:101,date:'2026-01-14',description:'Apple (Work)',amount:21.39,category:'Fixed Spending',subCategory:'Apple iCloud Storage',notes:'',isKnauf:true,projectId:null},
+  {id:102,date:'2026-01-22',description:'Apple Digital',amount:10.69,category:'Fixed Spending',subCategory:'Apple iCloud Storage',notes:'',isKnauf:true,projectId:null},
+  {id:103,date:'2026-02-11',description:'7-Eleven',amount:6.17,category:'Variable Spending',subCategory:'Auto: Gas',notes:'Knauf travel',isKnauf:true,projectId:null},
+  {id:104,date:'2026-02-15',description:'Shell Gas Station',amount:66.60,category:'Variable Spending',subCategory:'Auto: Gas',notes:'Knauf travel',isKnauf:true,projectId:null},
+  {id:105,date:'2026-02-15',description:'Park One Parking',amount:25,category:'Variable Spending',subCategory:'Travel',notes:'Parking - Knauf',isKnauf:true,projectId:null},
+  {id:106,date:'2026-02-20',description:'Rise and Roll Bakery',amount:34.98,category:'Variable Spending',subCategory:'Restaurants & Lunch Money',notes:'Knauf meeting lunch',isKnauf:true,projectId:null},
+  {id:107,date:'2026-02-23',description:'Delta Airlines',amount:9.99,category:'Variable Spending',subCategory:'Travel',notes:'Inflight wifi - Knauf',isKnauf:true,projectId:null},
+  {id:108,date:'2026-02-26',description:'Atlanta Travel Ease',amount:3.48,category:'Variable Spending',subCategory:'Travel',notes:'Knauf travel Atlanta',isKnauf:true,projectId:null},
+  {id:109,date:'2026-02-26',description:'Laz Parking',amount:31,category:'Variable Spending',subCategory:'Travel',notes:'Parking Atlanta',isKnauf:true,projectId:null},
+  {id:110,date:'2026-03-03',description:'A&R Indianapolis',amount:20,category:'Variable Spending',subCategory:'Restaurants & Lunch Money',notes:'Knauf lunch',isKnauf:true,projectId:null},
+  {id:111,date:'2026-03-04',description:'Laz Parking',amount:22.79,category:'Variable Spending',subCategory:'Travel',notes:'Parking',isKnauf:true,projectId:null},
+  {id:112,date:'2026-03-13',description:'GBT Travel Fee',amount:5.28,category:'Variable Spending',subCategory:'Travel',notes:'Booking fee',isKnauf:true,projectId:null},
+  {id:113,date:'2026-03-15',description:'GBT Travel Fee',amount:5.15,category:'Variable Spending',subCategory:'Travel',notes:'Booking fee',isKnauf:true,projectId:null},
+  {id:114,date:'2026-03-15',description:'Apple (Work)',amount:21.39,category:'Fixed Spending',subCategory:'Apple iCloud Storage',notes:'',isKnauf:true,projectId:null},
+  {id:115,date:'2026-03-17',description:'GBT Travel Fee',amount:10.30,category:'Variable Spending',subCategory:'Travel',notes:'Booking fee',isKnauf:true,projectId:null},
+  {id:116,date:'2026-04-17',description:'Love Gas Station',amount:42.01,category:'Variable Spending',subCategory:'Auto: Gas',notes:'Knauf Canada travel',isKnauf:true,projectId:null},
+  {id:117,date:'2026-04-17',description:'Petro Canada',amount:74.01,category:'Variable Spending',subCategory:'Auto: Gas',notes:'Knauf Canada travel',isKnauf:true,projectId:null},
+  {id:118,date:'2026-04-21',description:'GBT Travel Fee',amount:5.28,category:'Variable Spending',subCategory:'Travel',notes:'Booking fee',isKnauf:true,projectId:null},
+  {id:119,date:'2026-04-30',description:'Lufthansa',amount:187.10,category:'Variable Spending',subCategory:'Travel',notes:'Knauf international',isKnauf:true,projectId:null},
+  {id:120,date:'2026-04-30',description:'GBT Travel Fee',amount:5.78,category:'Variable Spending',subCategory:'Travel',notes:'Booking fee',isKnauf:true,projectId:null},
+  {id:121,date:'2026-05-08',description:'UK Travel Visa',amount:28.19,category:'Variable Spending',subCategory:'Travel',notes:'UK visa - Knauf',isKnauf:true,projectId:null},
+  {id:122,date:'2026-05-18',description:'Uber',amount:12.96,category:'Variable Spending',subCategory:'Travel',notes:'Knauf travel',isKnauf:true,projectId:null},
+  {id:123,date:'2026-05-18',description:'UA Inflight',amount:12.99,category:'Variable Spending',subCategory:'Travel',notes:'Knauf inflight wifi',isKnauf:true,projectId:null},
+];
+
+// ─── UTILS ────────────────────────────────────────────────────────────────────
+const fmt = (n) => new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',minimumFractionDigits:2}).format(n||0);
+const fmtCompact = (n) => n >= 1000 ? `$${(n/1000).toFixed(1)}k` : fmt(n);
+
+function getIndicator(actual, budget, isIncome=false) {
+  if (!budget || budget === 0) return null;
+  const ratio = actual / budget;
+  if (isIncome) {
+    if (ratio >= 1) return 'green';
+    if (ratio >= 0.85) return 'yellow';
+    return 'red';
+  } else {
+    if (ratio <= 1) return 'green';
+    if (ratio <= 1.15) return 'yellow';
+    return 'red';
+  }
+}
+
+function sumCategory(actuals, cat, month) {
+  if (!actuals[cat]) return 0;
+  return Object.values(actuals[cat]).reduce((s, arr) => s + (arr[month]||0), 0);
+}
+
+// ─── SMALL COMPONENTS ─────────────────────────────────────────────────────────
+function StatusDot({ color }) {
+  if (!color) return <span className="w-3 h-3 rounded-full bg-slate-600 inline-block" />;
+  const cls = { green:'bg-emerald-500', yellow:'bg-amber-400', red:'bg-red-500' }[color];
+  return <span className={`w-3 h-3 rounded-full ${cls} inline-block shadow-sm`} />;
+}
+
+function MetricCard({ label, value, sub, trend, color='text-white' }) {
+  return (
+    <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
+      <p className="text-slate-400 text-xs font-medium uppercase tracking-wider mb-1">{label}</p>
+      <p className={`text-2xl font-bold font-mono ${color}`}>{value}</p>
+      {sub && <p className="text-slate-500 text-xs mt-1">{sub}</p>}
+      {trend !== undefined && (
+        <div className={`flex items-center gap-1 mt-2 text-xs ${trend >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+          {trend >= 0 ? <TrendingUp size={12}/> : <TrendingDown size={12}/>}
+          <span>{trend >= 0 ? '+' : ''}{fmt(Math.abs(trend))} vs last yr</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Select({ value, onChange, options, className='' }) {
+  return (
+    <div className="relative">
+      <select value={value} onChange={e=>onChange(e.target.value)}
+        className={`appearance-none bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 pr-8 text-sm text-white focus:outline-none focus:border-sky-500 ${className}`}>
+        {options.map(o => typeof o === 'string'
+          ? <option key={o} value={o}>{o}</option>
+          : <option key={o.value} value={o.value}>{o.label}</option>
+        )}
+      </select>
+      <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
+    </div>
+  );
+}
+
+function Badge({ status }) {
+  const labels = { planned:'Planned', active:'Active', complete:'Complete' };
+  return (
+    <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${STATUS_COLORS[status]}`}>
+      {labels[status]}
+    </span>
+  );
+}
+
+// ─── DASHBOARD TAB ────────────────────────────────────────────────────────────
+function DashboardTab({ actuals2026, budgets, categories }) {
+  const [selMonth, setSelMonth] = useState(CURRENT_MONTH);
+  const [editBudget, setEditBudget] = useState(false);
+  const [localBudgets, setLocalBudgets] = useState(budgets);
+
+  const monthActuals = useMemo(() => {
+    const out = {};
+    for (const cat of Object.keys(actuals2026)) {
+      out[cat] = {};
+      for (const sub of Object.keys(actuals2026[cat])) {
+        out[cat][sub] = actuals2026[cat][sub][selMonth] || 0;
+      }
+    }
+    return out;
+  }, [actuals2026, selMonth]);
+
+  const totals = useMemo(() => ({
+    income: sumCategory(actuals2026, 'Income', selMonth),
+    fixed: sumCategory(actuals2026, 'Fixed Spending', selMonth),
+    variable: sumCategory(actuals2026, 'Variable Spending', selMonth),
+    savings: sumCategory(actuals2026, 'Savings', selMonth),
+  }), [actuals2026, selMonth]);
+
+  const net = totals.income - totals.fixed - totals.variable - totals.savings;
+
+  const budgetTotals = {
+    income: (localBudgets['Knauf Pay 15th']||0) + (localBudgets['Knauf Pay 30th']||0),
+    fixed: Object.keys(actuals2026['Fixed Spending']||{}).reduce((s,k)=>s+(localBudgets[k]||0),0),
+    variable: Object.keys(actuals2026['Variable Spending']||{}).reduce((s,k)=>s+(localBudgets[k]||0),0),
+    savings: (localBudgets['Norah 529']||0)+(localBudgets['Aubrey 529']||0)+(localBudgets['Carson 529']||0)+(localBudgets['Norah Schwab']||0)+(localBudgets['Aubrey Schwab']||0)+(localBudgets['Carson Schwab']||0)+(localBudgets['Schwab']||0),
+  };
+
+  const isPast = selMonth <= CURRENT_MONTH;
+
+  return (
+    <div className="space-y-6">
+      {/* Month selector */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h2 className="text-xl font-bold text-white">2026 Budget Dashboard</h2>
+        <div className="flex items-center gap-2">
+          <Select value={selMonth} onChange={v=>setSelMonth(+v)} options={MONTHS.map((m,i)=>({value:i,label:m}))} />
+          <span className="text-slate-400 text-sm">2026</span>
+        </div>
+      </div>
+
+      {/* Summary cards */}
+      {isPast && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <MetricCard label="Income" value={fmtCompact(totals.income)} sub={`Budget: ${fmtCompact(budgetTotals.income)}`} color="text-emerald-400"/>
+          <MetricCard label="Fixed Spending" value={fmtCompact(totals.fixed)} sub={`Budget: ${fmtCompact(budgetTotals.fixed)}`} color="text-sky-400"/>
+          <MetricCard label="Variable Spending" value={fmtCompact(totals.variable)} sub={`Budget: ${fmtCompact(budgetTotals.variable)}`} color="text-amber-400"/>
+          <MetricCard label="Net" value={fmtCompact(Math.abs(net))} sub={net >= 0 ? '▲ surplus' : '▼ over'} color={net >= 0 ? 'text-emerald-400' : 'text-red-400'}/>
+        </div>
+      )}
+
+      {/* Sections */}
+      {[
+        { key:'Income', label:'Income', isIncome:true },
+        { key:'Savings', label:'Savings', isIncome:false },
+        { key:'Fixed Spending', label:'Fixed Spending', isIncome:false },
+        { key:'Variable Spending', label:'Variable Spending', isIncome:false },
+      ].map(({ key, label, isIncome }) => (
+        <div key={key} className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-700 flex items-center justify-between">
+            <h3 className="font-semibold text-white">{label}</h3>
+            <span className="text-slate-400 text-sm font-mono">{fmt(Object.values(actuals2026[key]||{}).reduce((s,arr)=>s+(arr[selMonth]||0),0))}</span>
+          </div>
+          <div className="divide-y divide-slate-700/50">
+            {Object.keys(actuals2026[key]||{}).map(sub => {
+              const actual = actuals2026[key][sub][selMonth] || 0;
+              const budget = localBudgets[sub] || 0;
+              const indicator = isPast ? getIndicator(actual, budget, isIncome) : null;
+              if (!isPast && actual === 0 && budget === 0) return null;
+              return (
+                <div key={sub} className="px-4 py-2.5 flex items-center justify-between hover:bg-slate-700/30 transition-colors">
+                  <div className="flex items-center gap-3">
+                    {isPast && <StatusDot color={indicator} />}
+                    <span className="text-sm text-slate-300">{sub}</span>
+                  </div>
+                  <div className="flex items-center gap-6 text-sm font-mono">
+                    {isPast && <span className="text-slate-400 text-xs">Budget: {fmt(budget)}</span>}
+                    <span className={`font-semibold ${actual === 0 ? 'text-slate-600' : 'text-white'}`}>{fmt(actual)}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+
+      {/* Monthly overview bar */}
+      {isPast && (
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
+          <h3 className="font-semibold text-white mb-3">Month Summary</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            {[
+              {label:'Total Income',val:totals.income,color:'text-emerald-400'},
+              {label:'Total Expenditures',val:totals.fixed+totals.variable,color:'text-red-400'},
+              {label:'Savings',val:totals.savings,color:'text-sky-400'},
+              {label:'Net Remaining',val:net,color:net>=0?'text-emerald-400':'text-red-400'},
+            ].map(r=>(
+              <div key={r.label}>
+                <p className="text-slate-400 text-xs">{r.label}</p>
+                <p className={`font-bold font-mono text-lg ${r.color}`}>{fmt(r.val)}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── TRANSACTIONS TAB ─────────────────────────────────────────────────────────
+function TransactionsTab({ transactions, setTransactions, categories, projects }) {
+  const [search, setSearch] = useState('');
+  const [filterCat, setFilterCat] = useState('All');
+  const [filterMonth, setFilterMonth] = useState('All');
+  const [showAdd, setShowAdd] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [plaidMsg, setPlaidMsg] = useState('');
+
+  const blank = {date:new Date().toISOString().split('T')[0],description:'',amount:'',category:'Variable Spending',subCategory:'Groceries',notes:'',isKnauf:false,projectId:null};
+  const [form, setForm] = useState(blank);
+
+  const filtered = useMemo(() => transactions.filter(t => {
+    const m = filterMonth === 'All' || new Date(t.date).getMonth() === +filterMonth;
+    const c = filterCat === 'All' || t.category === filterCat;
+    const s = !search || t.description.toLowerCase().includes(search.toLowerCase()) || t.subCategory.toLowerCase().includes(search.toLowerCase()) || (t.notes||'').toLowerCase().includes(search.toLowerCase());
+    return m && c && s;
+  }).sort((a,b) => new Date(b.date)-new Date(a.date)), [transactions, filterCat, filterMonth, search]);
+
+  const subCats = form.category && categories[form.category] ? categories[form.category] : [];
+
+  function save() {
+    if (!form.description || !form.amount) return;
+    const tx = {...form, amount: parseFloat(form.amount)};
+    if (editId !== null) {
+      setTransactions(ts => ts.map(t => t.id === editId ? {...tx, id:editId} : t));
+      setEditId(null);
+    } else {
+      setTransactions(ts => [...ts, {...tx, id:_nextId++}]);
+    }
+    setForm(blank); setShowAdd(false);
+  }
+
+  function startEdit(t) { setForm({...t, amount:String(t.amount)}); setEditId(t.id); setShowAdd(true); }
+  function del(id) { setTransactions(ts => ts.filter(t=>t.id!==id)); }
+
+  function toggleKnauf(id) { setTransactions(ts=>ts.map(t=>t.id===id?{...t,isKnauf:!t.isKnauf}:t)); }
+  function toggleProject(id, pid) { setTransactions(ts=>ts.map(t=>t.id===id?{...t,projectId:pid}:t)); }
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex flex-wrap gap-2 items-center justify-between">
+        <h2 className="text-xl font-bold text-white">Transactions</h2>
+        <div className="flex gap-2">
+          <button onClick={()=>{setPlaidMsg('Plaid connection requires backend deployment. See Phase 2 setup guide.'); setTimeout(()=>setPlaidMsg(''),4000);}}
+            className="flex items-center gap-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm font-medium text-white transition-colors">
+            <Link size={14}/> Connect Bank (Plaid)
+          </button>
+          <button onClick={()=>{setForm(blank);setEditId(null);setShowAdd(true);}}
+            className="flex items-center gap-2 px-3 py-2 bg-sky-600 hover:bg-sky-500 rounded-lg text-sm font-medium text-white transition-colors">
+            <Plus size={14}/> Add
+          </button>
+        </div>
+      </div>
+
+      {plaidMsg && (
+        <div className="bg-amber-900/30 border border-amber-500/40 rounded-lg px-4 py-3 text-amber-300 text-sm flex items-center gap-2">
+          <AlertTriangle size={16}/> {plaidMsg}
+        </div>
+      )}
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-2">
+        <div className="relative flex-1 min-w-40">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search transactions..."
+            className="w-full bg-slate-700 border border-slate-600 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-sky-500"/>
+        </div>
+        <Select value={filterMonth} onChange={setFilterMonth} options={[{value:'All',label:'All Months'},...MONTHS.map((m,i)=>({value:i,label:`${m} 2026`}))]}/>
+        <Select value={filterCat} onChange={setFilterCat} options={['All','Income','Savings','Fixed Spending','Variable Spending']}/>
+      </div>
+
+      {/* Add/Edit modal */}
+      {showAdd && (
+        <div className="bg-slate-800 border border-slate-600 rounded-xl p-4 space-y-3">
+          <h3 className="font-semibold text-white">{editId ? 'Edit Transaction' : 'Add Transaction'}</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs text-slate-400 mb-1 block">Date</label>
+              <input type="date" value={form.date} onChange={e=>setForm({...form,date:e.target.value})}
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500"/>
+            </div>
+            <div className="col-span-2 md:col-span-1">
+              <label className="text-xs text-slate-400 mb-1 block">Description</label>
+              <input value={form.description} onChange={e=>setForm({...form,description:e.target.value})} placeholder="Merchant / Description"
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500"/>
+            </div>
+            <div>
+              <label className="text-xs text-slate-400 mb-1 block">Amount ($)</label>
+              <input type="number" step="0.01" value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})} placeholder="0.00"
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500"/>
+            </div>
+            <div>
+              <label className="text-xs text-slate-400 mb-1 block">Category</label>
+              <Select value={form.category} onChange={v=>setForm({...form,category:v,subCategory:categories[v]?.[0]||''})} options={Object.keys(categories)} className="w-full"/>
+            </div>
+            <div>
+              <label className="text-xs text-slate-400 mb-1 block">Sub-Category</label>
+              <Select value={form.subCategory} onChange={v=>setForm({...form,subCategory:v})} options={subCats} className="w-full"/>
+            </div>
+            <div className="col-span-2 md:col-span-1">
+              <label className="text-xs text-slate-400 mb-1 block">Notes</label>
+              <input value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} placeholder="Optional notes"
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500"/>
+            </div>
+            <div className="flex items-center gap-4 col-span-2 md:col-span-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={form.isKnauf} onChange={e=>setForm({...form,isKnauf:e.target.checked})} className="w-4 h-4 accent-sky-500"/>
+                <span className="text-sm text-slate-300">Knauf Expense</span>
+              </label>
+              <div className="flex items-center gap-2">
+                <input type="checkbox" checked={form.projectId !== null} onChange={e=>setForm({...form,projectId:e.target.checked?(projects[0]?.id||null):null})} className="w-4 h-4 accent-sky-500"/>
+                <span className="text-sm text-slate-300">Link Project</span>
+                {form.projectId !== null && (
+                  <Select value={form.projectId||''} onChange={v=>setForm({...form,projectId:+v})}
+                    options={projects.map(p=>({value:p.id,label:p.name}))} className="ml-1"/>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="flex gap-2 justify-end">
+            <button onClick={()=>{setShowAdd(false);setEditId(null);setForm(blank);}} className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm text-white transition-colors"><X size={14} className="inline mr-1"/>Cancel</button>
+            <button onClick={save} className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-sm text-white font-medium transition-colors"><Save size={14} className="inline mr-1"/>Save</button>
+          </div>
+        </div>
+      )}
+
+      {/* Table */}
+      <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-700 bg-slate-800/80">
+                <th className="text-left px-4 py-3 text-xs text-slate-400 font-medium uppercase tracking-wider">Date</th>
+                <th className="text-left px-4 py-3 text-xs text-slate-400 font-medium uppercase tracking-wider">Description</th>
+                <th className="text-left px-4 py-3 text-xs text-slate-400 font-medium uppercase tracking-wider">Category</th>
+                <th className="text-left px-4 py-3 text-xs text-slate-400 font-medium uppercase tracking-wider">Notes</th>
+                <th className="text-right px-4 py-3 text-xs text-slate-400 font-medium uppercase tracking-wider">Amount</th>
+                <th className="text-center px-3 py-3 text-xs text-slate-400 font-medium uppercase tracking-wider">Knauf</th>
+                <th className="text-center px-3 py-3 text-xs text-slate-400 font-medium uppercase tracking-wider">Project</th>
+                <th className="px-3 py-3"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-700/50">
+              {filtered.length === 0 && (
+                <tr><td colSpan={8} className="text-center py-12 text-slate-500">No transactions found</td></tr>
+              )}
+              {filtered.map(t => {
+                const proj = projects.find(p=>p.id===t.projectId);
+                return (
+                  <tr key={t.id} className="hover:bg-slate-700/30 transition-colors">
+                    <td className="px-4 py-3 text-slate-400 whitespace-nowrap">{t.date}</td>
+                    <td className="px-4 py-3 text-white font-medium">{t.description}</td>
+                    <td className="px-4 py-3">
+                      <div className="text-slate-300">{t.subCategory}</div>
+                      <div className="text-slate-500 text-xs">{t.category}</div>
+                    </td>
+                    <td className="px-4 py-3 text-slate-400 text-xs max-w-xs truncate">{t.notes}</td>
+                    <td className={`px-4 py-3 text-right font-mono font-semibold ${t.category==='Income'?'text-emerald-400':'text-white'}`}>{fmt(t.amount)}</td>
+                    <td className="px-3 py-3 text-center">
+                      <button onClick={()=>toggleKnauf(t.id)} className="text-slate-400 hover:text-sky-400 transition-colors">
+                        {t.isKnauf ? <CheckSquare size={16} className="text-sky-400"/> : <Square size={16}/>}
+                      </button>
+                    </td>
+                    <td className="px-3 py-3 text-center">
+                      {proj ? (
+                        <span className="text-xs px-1.5 py-0.5 bg-purple-500/20 text-purple-300 rounded border border-purple-500/30 whitespace-nowrap">{proj.name.slice(0,12)}…</span>
+                      ) : (
+                        <button onClick={()=>{}} className="text-slate-600 hover:text-purple-400 transition-colors">
+                          <Tag size={14}/>
+                        </button>
+                      )}
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="flex gap-1">
+                        <button onClick={()=>startEdit(t)} className="p-1 text-slate-500 hover:text-sky-400 transition-colors"><Edit2 size={13}/></button>
+                        <button onClick={()=>del(t.id)} className="p-1 text-slate-500 hover:text-red-400 transition-colors"><Trash2 size={13}/></button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="px-4 py-3 border-t border-slate-700 flex items-center justify-between text-sm">
+          <span className="text-slate-400">{filtered.length} transactions</span>
+          <span className="text-slate-300 font-mono font-semibold">
+            Total: {fmt(filtered.filter(t=>t.category!=='Income').reduce((s,t)=>s+t.amount,0))}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── KNAUF TAB ────────────────────────────────────────────────────────────────
+function KnaufTab({ transactions }) {
+  const knaufTx = useMemo(() => transactions.filter(t=>t.isKnauf).sort((a,b)=>new Date(b.date)-new Date(a.date)), [transactions]);
+  const total = knaufTx.reduce((s,t)=>s+t.amount,0);
+  const totalReimbursed = 1049.26; // from spreadsheet
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-xl font-bold text-white">Knauf Expenses</h2>
+      <div className="grid grid-cols-3 gap-3">
+        <MetricCard label="Total Submitted" value={fmt(total)} color="text-sky-400"/>
+        <MetricCard label="Reimbursed (Prior)" value={fmt(totalReimbursed)} color="text-emerald-400"/>
+        <MetricCard label="Outstanding" value={fmt(Math.max(0,total-totalReimbursed))} color="text-amber-400"/>
+      </div>
+      <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-slate-700">
+          <p className="text-slate-400 text-xs">Check transactions as Knauf Expense in the Transactions tab to add them here.</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead><tr className="border-b border-slate-700">
+              <th className="text-left px-4 py-3 text-xs text-slate-400 font-medium uppercase tracking-wider">Date</th>
+              <th className="text-left px-4 py-3 text-xs text-slate-400 font-medium uppercase tracking-wider">Description</th>
+              <th className="text-left px-4 py-3 text-xs text-slate-400 font-medium uppercase tracking-wider">Category</th>
+              <th className="text-left px-4 py-3 text-xs text-slate-400 font-medium uppercase tracking-wider">Notes</th>
+              <th className="text-right px-4 py-3 text-xs text-slate-400 font-medium uppercase tracking-wider">Amount</th>
+            </tr></thead>
+            <tbody className="divide-y divide-slate-700/50">
+              {knaufTx.length === 0 && <tr><td colSpan={5} className="text-center py-12 text-slate-500">No Knauf expenses yet. Check the Knauf box on transactions.</td></tr>}
+              {knaufTx.map(t=>(
+                <tr key={t.id} className="hover:bg-slate-700/30 transition-colors">
+                  <td className="px-4 py-3 text-slate-400">{t.date}</td>
+                  <td className="px-4 py-3 text-white font-medium">{t.description}</td>
+                  <td className="px-4 py-3 text-slate-300 text-xs">{t.subCategory}</td>
+                  <td className="px-4 py-3 text-slate-400 text-xs">{t.notes}</td>
+                  <td className="px-4 py-3 text-right font-mono font-semibold text-white">{fmt(t.amount)}</td>
+                </tr>
+              ))}
+            </tbody>
+            {knaufTx.length > 0 && (
+              <tfoot><tr className="border-t border-slate-600 bg-slate-700/30">
+                <td colSpan={4} className="px-4 py-3 text-right text-slate-300 font-medium">Total</td>
+                <td className="px-4 py-3 text-right font-mono font-bold text-white">{fmt(total)}</td>
+              </tr></tfoot>
+            )}
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── PROJECTS TAB ─────────────────────────────────────────────────────────────
+function ProjectsTab({ projects, setProjects, transactions }) {
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [yearFilter, setYearFilter] = useState('All');
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({name:'',year:2026,budgeted:'',actual:'',status:'planned',description:''});
+
+  const filtered = projects.filter(p=>(statusFilter==='All'||p.status===statusFilter)&&(yearFilter==='All'||p.year===+yearFilter));
+  const cycleStatus = (id) => {
+    const order = ['planned','active','complete'];
+    setProjects(ps=>ps.map(p=>p.id===id?{...p,status:order[(order.indexOf(p.status)+1)%3]}:p));
+  };
+  const del = (id) => setProjects(ps=>ps.filter(p=>p.id!==id));
+  const save = () => {
+    if (!form.name) return;
+    setProjects(ps=>[...ps,{...form,id:_nextId++,budgeted:parseFloat(form.budgeted)||0,actual:parseFloat(form.actual)||0}]);
+    setForm({name:'',year:2026,budgeted:'',actual:'',status:'planned',description:''});
+    setShowAdd(false);
+  };
+
+  const totals = { planned:0, active:0, complete:0 };
+  projects.forEach(p=>{ totals[p.status]=(totals[p.status]||0)+p.budgeted; });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2 items-center justify-between">
+        <h2 className="text-xl font-bold text-white">Project Tracker</h2>
+        <button onClick={()=>setShowAdd(true)} className="flex items-center gap-2 px-3 py-2 bg-sky-600 hover:bg-sky-500 rounded-lg text-sm font-medium text-white transition-colors">
+          <Plus size={14}/> Add Project
+        </button>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        <MetricCard label="Planned" value={fmtCompact(totals.planned)} color="text-sky-400"/>
+        <MetricCard label="Active" value={fmtCompact(totals.active)} color="text-amber-400"/>
+        <MetricCard label="Complete" value={fmtCompact(totals.complete)} color="text-emerald-400"/>
+      </div>
+
+      <div className="flex gap-2 flex-wrap">
+        {['All','planned','active','complete'].map(s=>(
+          <button key={s} onClick={()=>setStatusFilter(s)}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium capitalize transition-colors ${statusFilter===s?'bg-sky-600 text-white':'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}>
+            {s === 'All' ? 'All Statuses' : s}
+          </button>
+        ))}
+        <Select value={yearFilter} onChange={setYearFilter} options={[{value:'All',label:'All Years'},{value:2025,label:'2025'},{value:2026,label:'2026'}]}/>
+      </div>
+
+      {showAdd && (
+        <div className="bg-slate-800 border border-slate-600 rounded-xl p-4 space-y-3">
+          <h3 className="font-semibold text-white">New Project</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="col-span-2 md:col-span-2">
+              <label className="text-xs text-slate-400 mb-1 block">Project Name</label>
+              <input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Project name"
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500"/>
+            </div>
+            <div>
+              <label className="text-xs text-slate-400 mb-1 block">Year</label>
+              <Select value={form.year} onChange={v=>setForm({...form,year:+v})} options={[{value:2025,label:'2025'},{value:2026,label:'2026'}]} className="w-full"/>
+            </div>
+            <div>
+              <label className="text-xs text-slate-400 mb-1 block">Budgeted ($)</label>
+              <input type="number" value={form.budgeted} onChange={e=>setForm({...form,budgeted:e.target.value})}
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500"/>
+            </div>
+            <div>
+              <label className="text-xs text-slate-400 mb-1 block">Actual Spent ($)</label>
+              <input type="number" value={form.actual} onChange={e=>setForm({...form,actual:e.target.value})}
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500"/>
+            </div>
+            <div>
+              <label className="text-xs text-slate-400 mb-1 block">Status</label>
+              <Select value={form.status} onChange={v=>setForm({...form,status:v})} options={['planned','active','complete']} className="w-full"/>
+            </div>
+            <div className="col-span-2">
+              <label className="text-xs text-slate-400 mb-1 block">Description / Notes</label>
+              <input value={form.description} onChange={e=>setForm({...form,description:e.target.value})}
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500"/>
+            </div>
+          </div>
+          <div className="flex gap-2 justify-end">
+            <button onClick={()=>setShowAdd(false)} className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm text-white transition-colors">Cancel</button>
+            <button onClick={save} className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-sm text-white font-medium transition-colors">Save Project</button>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {filtered.map(p => {
+          const linked = transactions.filter(t=>t.projectId===p.id);
+          const linkedTotal = linked.reduce((s,t)=>s+t.amount,0);
+          const pct = p.budgeted > 0 ? Math.min(100, (p.actual/p.budgeted)*100) : 0;
+          return (
+            <div key={p.id} className="bg-slate-800 border border-slate-700 rounded-xl p-4">
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="font-semibold text-white">{p.name}</h3>
+                    <Badge status={p.status}/>
+                    <span className="text-xs text-slate-500">{p.year}</span>
+                  </div>
+                  {p.description && <p className="text-slate-400 text-xs">{p.description}</p>}
+                </div>
+                <div className="flex gap-1 shrink-0">
+                  <button onClick={()=>cycleStatus(p.id)} className="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-xs text-slate-300 transition-colors">
+                    <RefreshCw size={11} className="inline mr-1"/>Status
+                  </button>
+                  <button onClick={()=>del(p.id)} className="p-1 text-slate-500 hover:text-red-400 transition-colors"><Trash2 size={14}/></button>
+                </div>
+              </div>
+              <div className="flex gap-6 text-sm mb-3">
+                <div><p className="text-slate-400 text-xs">Budgeted</p><p className="font-mono font-semibold text-white">{fmt(p.budgeted)}</p></div>
+                <div><p className="text-slate-400 text-xs">Actual</p><p className="font-mono font-semibold text-white">{fmt(p.actual)}</p></div>
+                {linked.length > 0 && <div><p className="text-slate-400 text-xs">Linked Tx</p><p className="font-mono font-semibold text-purple-300">{fmt(linkedTotal)}</p></div>}
+              </div>
+              {p.budgeted > 0 && (
+                <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full transition-all" style={{width:`${pct}%`, backgroundColor: pct>100?'#ef4444':pct>85?'#f59e0b':'#10b981'}}/>
+                </div>
+              )}
+              {linked.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-slate-700 space-y-1">
+                  {linked.map(t=>(
+                    <div key={t.id} className="flex justify-between text-xs text-slate-400">
+                      <span>{t.date} · {t.description}</span>
+                      <span className="font-mono">{fmt(t.amount)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {filtered.length === 0 && <div className="text-center py-12 text-slate-500">No projects match filters</div>}
+      </div>
+    </div>
+  );
+}
+
+// ─── ANALYTICS TAB ────────────────────────────────────────────────────────────
+function AnalyticsTab({ actuals2026 }) {
+  const COLORS = ['#06b6d4','#10b981','#f59e0b','#8b5cf6','#ef4444','#ec4899','#84cc16','#f97316'];
+
+  const monthlyData = useMemo(() => MONTHS.map((m,i)=>{
+    const income = sumCategory(actuals2026,'Income',i);
+    const fixed = sumCategory(actuals2026,'Fixed Spending',i);
+    const variable = sumCategory(actuals2026,'Variable Spending',i);
+    const savings = sumCategory(actuals2026,'Savings',i);
+    const spending = fixed + variable;
+    return { month:m, income, spending, savings, net:income-spending-savings };
+  }), [actuals2026]);
+
+  const yoyData = useMemo(() => MONTHS.map((m,i)=>{
+    const inc2026 = sumCategory(actuals2026,'Income',i);
+    const exp2026 = sumCategory(actuals2026,'Fixed Spending',i)+sumCategory(actuals2026,'Variable Spending',i);
+    return {
+      month: m,
+      'Income 2026': inc2026||null,
+      'Income 2025': DATA_2025.income[i],
+      'Spending 2026': exp2026||null,
+      'Spending 2025': DATA_2025.expenditures[i],
+    };
+  }), [actuals2026]);
+
+  const catBreakdown = useMemo(() => {
+    const keys = Object.keys(actuals2026['Variable Spending']||{});
+    const items = keys.map(k=>({name:k.length>22?k.slice(0,22)+'…':k, value:actuals2026['Variable Spending'][k].reduce((s,v)=>s+v,0)}))
+      .filter(i=>i.value>0).sort((a,b)=>b.value-a.value).slice(0,10);
+    return items;
+  }, [actuals2026]);
+
+  const catYOY = useMemo(() => {
+    const keys = Object.keys(VAR_2025);
+    return keys.map(k=>({
+      name: k.length>18?k.slice(0,18)+'…':k,
+      '2025': VAR_2025[k],
+      '2026 YTD': (actuals2026['Variable Spending']?.[k]||[]).reduce((s,v)=>s+v,0),
+    })).sort((a,b)=>b['2025']-a['2025']).slice(0,10);
+  }, [actuals2026]);
+
+  const incTotal2026 = DATA_2025.income.reduce((s,v)=>s+v,0);
+  const incTotal2025 = monthlyData.reduce((s,m)=>s+m.income,0);
+  const savRate2026 = monthlyData.filter(m=>m.income>0).map(m=>m.savings/m.income*100);
+  const avgSavRate = savRate2026.length ? savRate2026.reduce((s,v)=>s+v,0)/savRate2026.length : 0;
+
+  const tooltipStyle = { backgroundColor:'#1e293b', border:'1px solid #334155', borderRadius:'8px', color:'#fff', fontSize:'12px' };
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-xl font-bold text-white">Analytics & Trends</h2>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <MetricCard label="2025 Total Income" value={fmtCompact(incTotal2026)} color="text-emerald-400"/>
+        <MetricCard label="2026 YTD Income" value={fmtCompact(incTotal2025)} color="text-sky-400"/>
+        <MetricCard label="Avg Savings Rate" value={`${avgSavRate.toFixed(1)}%`} color="text-amber-400"/>
+        <MetricCard label="2025 Project Spend" value={fmt(31482.11)} color="text-purple-400"/>
+      </div>
+
+      {/* Monthly Income vs Spending 2026 */}
+      <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
+        <h3 className="font-semibold text-white mb-4">2026 Monthly: Income vs Spending</h3>
+        <ResponsiveContainer width="100%" height={220}>
+          <AreaChart data={monthlyData} margin={{top:5,right:10,left:0,bottom:5}}>
+            <defs>
+              <linearGradient id="incGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+              </linearGradient>
+              <linearGradient id="expGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
+                <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#334155"/>
+            <XAxis dataKey="month" tick={{fontSize:11,fill:'#94a3b8'}} axisLine={false} tickLine={false}/>
+            <YAxis tickFormatter={v=>fmtCompact(v)} tick={{fontSize:11,fill:'#94a3b8'}} axisLine={false} tickLine={false}/>
+            <Tooltip contentStyle={tooltipStyle} formatter={(v,n)=>[fmt(v),n]}/>
+            <Legend wrapperStyle={{fontSize:'12px',color:'#94a3b8'}}/>
+            <Area type="monotone" dataKey="income" name="Income" stroke="#10b981" fill="url(#incGrad)" strokeWidth={2}/>
+            <Area type="monotone" dataKey="spending" name="Spending" stroke="#ef4444" fill="url(#expGrad)" strokeWidth={2}/>
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* YOY Comparison */}
+      <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
+        <h3 className="font-semibold text-white mb-4">Year-Over-Year: Income & Spending (2025 vs 2026)</h3>
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={yoyData} margin={{top:5,right:10,left:0,bottom:5}}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#334155"/>
+            <XAxis dataKey="month" tick={{fontSize:11,fill:'#94a3b8'}} axisLine={false} tickLine={false}/>
+            <YAxis tickFormatter={v=>fmtCompact(v)} tick={{fontSize:11,fill:'#94a3b8'}} axisLine={false} tickLine={false}/>
+            <Tooltip contentStyle={tooltipStyle} formatter={(v,n)=>[v?fmt(v):'N/A',n]}/>
+            <Legend wrapperStyle={{fontSize:'12px',color:'#94a3b8'}}/>
+            <Bar dataKey="Income 2025" fill="#10b981" fillOpacity={0.5} radius={[2,2,0,0]}/>
+            <Bar dataKey="Income 2026" fill="#10b981" radius={[2,2,0,0]}/>
+            <Bar dataKey="Spending 2025" fill="#ef4444" fillOpacity={0.5} radius={[2,2,0,0]}/>
+            <Bar dataKey="Spending 2026" fill="#ef4444" radius={[2,2,0,0]}/>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Variable Spending Breakdown */}
+      <div className="grid md:grid-cols-2 gap-4">
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
+          <h3 className="font-semibold text-white mb-4">2026 YTD Variable Spending</h3>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={catBreakdown} layout="vertical" margin={{top:0,right:60,left:0,bottom:0}}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={false}/>
+              <XAxis type="number" tickFormatter={v=>fmtCompact(v)} tick={{fontSize:10,fill:'#94a3b8'}} axisLine={false} tickLine={false}/>
+              <YAxis type="category" dataKey="name" tick={{fontSize:10,fill:'#94a3b8'}} axisLine={false} tickLine={false} width={120}/>
+              <Tooltip contentStyle={tooltipStyle} formatter={v=>[fmt(v),'Amount']}/>
+              <Bar dataKey="value" radius={[0,3,3,0]}>
+                {catBreakdown.map((_,i)=><Cell key={i} fill={COLORS[i%COLORS.length]}/>)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
+          <h3 className="font-semibold text-white mb-4">Variable Spending: 2025 vs 2026 YTD</h3>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={catYOY} layout="vertical" margin={{top:0,right:10,left:0,bottom:0}}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={false}/>
+              <XAxis type="number" tickFormatter={v=>fmtCompact(v)} tick={{fontSize:10,fill:'#94a3b8'}} axisLine={false} tickLine={false}/>
+              <YAxis type="category" dataKey="name" tick={{fontSize:10,fill:'#94a3b8'}} axisLine={false} tickLine={false} width={120}/>
+              <Tooltip contentStyle={tooltipStyle} formatter={(v,n)=>[fmt(v),n]}/>
+              <Legend wrapperStyle={{fontSize:'11px',color:'#94a3b8'}}/>
+              <Bar dataKey="2025" fill="#06b6d4" fillOpacity={0.6} radius={[0,3,3,0]}/>
+              <Bar dataKey="2026 YTD" fill="#8b5cf6" radius={[0,3,3,0]}/>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Net & Savings Trend */}
+      <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
+        <h3 className="font-semibold text-white mb-4">2026 Monthly Net & Savings</h3>
+        <ResponsiveContainer width="100%" height={180}>
+          <LineChart data={monthlyData} margin={{top:5,right:10,left:0,bottom:5}}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#334155"/>
+            <XAxis dataKey="month" tick={{fontSize:11,fill:'#94a3b8'}} axisLine={false} tickLine={false}/>
+            <YAxis tickFormatter={v=>fmtCompact(v)} tick={{fontSize:11,fill:'#94a3b8'}} axisLine={false} tickLine={false}/>
+            <Tooltip contentStyle={tooltipStyle} formatter={(v,n)=>[fmt(v),n]}/>
+            <Legend wrapperStyle={{fontSize:'12px',color:'#94a3b8'}}/>
+            <Line type="monotone" dataKey="net" name="Net" stroke="#10b981" strokeWidth={2} dot={{fill:'#10b981',r:3}} connectNulls={false}/>
+            <Line type="monotone" dataKey="savings" name="Savings" stroke="#f59e0b" strokeWidth={2} dot={{fill:'#f59e0b',r:3}} connectNulls={false}/>
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+// ─── SETTINGS TAB ─────────────────────────────────────────────────────────────
+function SettingsTab({ categories, setCategories, budgets, setBudgets }) {
+  const [activeSec, setActiveSec] = useState('budgets');
+  const [editCat, setEditCat] = useState('Variable Spending');
+  const [newSub, setNewSub] = useState('');
+  const [plaidCfg, setPlaidCfg] = useState({ clientId:'', sandboxSecret:'', productionSecret:'', env:'sandbox' });
+  const [saved, setSaved] = useState(false);
+
+  function addSub() {
+    if (!newSub.trim()) return;
+    setCategories(c=>({...c,[editCat]:[...c[editCat],newSub.trim()]}));
+    setNewSub('');
+  }
+  function removeSub(cat, sub) { setCategories(c=>({...c,[cat]:c[cat].filter(s=>s!==sub)})); }
+
+  const savePlaid = () => { setSaved(true); setTimeout(()=>setSaved(false),2000); };
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-xl font-bold text-white">Settings</h2>
+
+      <div className="flex gap-2 flex-wrap">
+        {['budgets','categories','plaid'].map(s=>(
+          <button key={s} onClick={()=>setActiveSec(s)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${activeSec===s?'bg-sky-600 text-white':'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}>
+            {s === 'plaid' ? 'Plaid Config' : s.charAt(0).toUpperCase()+s.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      {activeSec === 'budgets' && (
+        <div className="space-y-4">
+          <p className="text-slate-400 text-sm">Set monthly budget targets for each category. These are used for the R/Y/G indicators on the dashboard.</p>
+          {Object.entries(categories).map(([cat, subs])=>(
+            <div key={cat} className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-700 bg-slate-800/80">
+                <h3 className="font-semibold text-white text-sm">{cat}</h3>
+              </div>
+              <div className="divide-y divide-slate-700/50">
+                {subs.map(sub=>(
+                  <div key={sub} className="px-4 py-2.5 flex items-center justify-between">
+                    <span className="text-sm text-slate-300">{sub}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-500 text-xs">$</span>
+                      <input type="number" value={budgets[sub]||0}
+                        onChange={e=>setBudgets(b=>({...b,[sub]:parseFloat(e.target.value)||0}))}
+                        className="w-28 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm text-white text-right font-mono focus:outline-none focus:border-sky-500"/>
+                      <span className="text-slate-500 text-xs">/mo</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {activeSec === 'categories' && (
+        <div className="space-y-4">
+          <p className="text-slate-400 text-sm">Add or remove subcategories from each category group. These populate all dropdowns throughout the app.</p>
+          <Select value={editCat} onChange={setEditCat} options={Object.keys(categories)} className="w-full"/>
+          <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+            <div className="p-3 border-b border-slate-700 flex gap-2">
+              <input value={newSub} onChange={e=>setNewSub(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addSub()} placeholder={`Add subcategory to ${editCat}…`}
+                className="flex-1 bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500"/>
+              <button onClick={addSub} className="px-3 py-2 bg-sky-600 hover:bg-sky-500 rounded-lg text-white transition-colors"><Plus size={16}/></button>
+            </div>
+            <div className="divide-y divide-slate-700/50 max-h-80 overflow-y-auto">
+              {(categories[editCat]||[]).map(sub=>(
+                <div key={sub} className="px-4 py-2.5 flex items-center justify-between hover:bg-slate-700/30">
+                  <span className="text-sm text-slate-300">{sub}</span>
+                  <button onClick={()=>removeSub(editCat,sub)} className="text-slate-500 hover:text-red-400 transition-colors"><X size={14}/></button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeSec === 'plaid' && (
+        <div className="space-y-4">
+          <div className="bg-amber-900/20 border border-amber-500/30 rounded-xl p-4 text-sm text-amber-300">
+            <p className="font-semibold mb-1">⚠️ Security Note</p>
+            <p>Never share your production secret. These values are stored only in your browser session and are cleared when you close the tab. In the deployed version, these will be managed server-side via Supabase environment variables.</p>
+          </div>
+          <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-4">
+            <h3 className="font-semibold text-white">Plaid API Configuration</h3>
+            {[
+              {key:'clientId',label:'Client ID',type:'text'},
+              {key:'sandboxSecret',label:'Sandbox Secret',type:'password'},
+              {key:'productionSecret',label:'Production Secret',type:'password'},
+            ].map(f=>(
+              <div key={f.key}>
+                <label className="text-xs text-slate-400 mb-1 block">{f.label}</label>
+                <input type={f.type} value={plaidCfg[f.key]} onChange={e=>setPlaidCfg(c=>({...c,[f.key]:e.target.value}))} placeholder={`Enter ${f.label}…`}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500 font-mono"/>
+              </div>
+            ))}
+            <div>
+              <label className="text-xs text-slate-400 mb-1 block">Environment</label>
+              <Select value={plaidCfg.env} onChange={v=>setPlaidCfg(c=>({...c,env:v}))} options={['sandbox','production']} className="w-full"/>
+            </div>
+            <button onClick={savePlaid} className="flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-500 rounded-lg text-sm font-medium text-white transition-colors">
+              {saved ? <><Check size={14}/> Saved!</> : <><Save size={14}/> Save Config</>}
+            </button>
+          </div>
+          <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 text-sm text-slate-400 space-y-2">
+            <h3 className="font-semibold text-white text-sm">How Bank Connection Works</h3>
+            <ol className="list-decimal list-inside space-y-1">
+              <li>After deploying to Vercel, your backend creates a Plaid link token</li>
+              <li>You click "Connect Bank" → Plaid Link opens → log into your bank</li>
+              <li>Plaid returns a token → transactions sync automatically</li>
+              <li>New transactions appear in the Transactions tab for categorization</li>
+            </ol>
+            <p className="text-slate-500 text-xs">Trial plan supports up to 10 connected accounts — plenty for checking + savings + all credit cards.</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── MAIN APP ─────────────────────────────────────────────────────────────────
+export default function BudgetApp() {
+  const [tab, setTab] = useState('dashboard');
+  const [transactions, setTransactions] = useState(INIT_TRANSACTIONS);
+  const [projects, setProjects] = useState(INIT_PROJECTS);
+  const [categories, setCategories] = useState(INIT_CATEGORIES);
+  const [budgets, setBudgets] = useState(INIT_BUDGETS);
+  const [actuals2026] = useState(ACTUALS_2026);
+
+  const TABS = [
+    {id:'dashboard', label:'Dashboard', icon: Home},
+    {id:'transactions', label:'Transactions', icon: List},
+    {id:'knauf', label:'Knauf', icon: Building2},
+    {id:'projects', label:'Projects', icon: FolderOpen},
+    {id:'analytics', label:'Analytics', icon: BarChart2},
+    {id:'settings', label:'Settings', icon: Settings},
+  ];
+
+  return (
+    <div className="min-h-screen bg-slate-900 text-white" style={{fontFamily:"'DM Sans', system-ui, sans-serif"}}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+        .font-mono { font-family: 'DM Mono', monospace; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+      `}</style>
+
+      {/* Header */}
+      <header className="bg-slate-800 border-b border-slate-700 sticky top-0 z-30">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-gradient-to-br from-sky-500 to-indigo-600 rounded-lg flex items-center justify-center">
+              <DollarSign size={16} className="text-white"/>
+            </div>
+            <div>
+              <h1 className="font-bold text-white text-sm leading-none">Family Budget</h1>
+              <p className="text-slate-400 text-xs">2026 · Geske</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 px-2 py-0.5 rounded-full">Jan–May Synced</span>
+          </div>
+        </div>
+
+        {/* Tab bar */}
+        <div className="max-w-6xl mx-auto px-2 flex overflow-x-auto gap-1 pb-0">
+          {TABS.map(t=>{
+            const Icon = t.icon;
+            return (
+              <button key={t.id} onClick={()=>setTab(t.id)}
+                className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium whitespace-nowrap border-b-2 transition-colors ${
+                  tab===t.id ? 'border-sky-500 text-sky-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
+                <Icon size={13}/>{t.label}
+              </button>
+            );
+          })}
+        </div>
+      </header>
+
+      {/* Content */}
+      <main className="max-w-6xl mx-auto px-4 py-6">
+        {tab === 'dashboard'    && <DashboardTab actuals2026={actuals2026} budgets={budgets} categories={categories}/>}
+        {tab === 'transactions' && <TransactionsTab transactions={transactions} setTransactions={setTransactions} categories={categories} projects={projects}/>}
+        {tab === 'knauf'        && <KnaufTab transactions={transactions}/>}
+        {tab === 'projects'     && <ProjectsTab projects={projects} setProjects={setProjects} transactions={transactions}/>}
+        {tab === 'analytics'    && <AnalyticsTab actuals2026={actuals2026}/>}
+        {tab === 'settings'     && <SettingsTab categories={categories} setCategories={setCategories} budgets={budgets} setBudgets={setBudgets}/>}
+      </main>
+    </div>
+  );
+}
