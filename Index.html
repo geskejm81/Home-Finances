@@ -4,21 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Family Budget" />
     <title>Family Budget</title>
     <script src="https://cdn.tailwindcss.com"></script>
   </head>
-  <body>
+  <body class="bg-slate-900">
     <div id="root"></div>
-    <script type="module">
-      import React from 'https://esm.sh/react@18'
-      import ReactDOM from 'https://esm.sh/react-dom@18/client'
-      import App from './budget-app.jsx'
-
-      ReactDOM.createRoot(document.getElementById('root')).render(
-        React.createElement(App)
-      )
-    </script>
+    <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
