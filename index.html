@@ -7,93 +7,54 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <meta name="apple-mobile-web-app-title" content="Family Budget"/>
   <title>Family Budget</title>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/recharts/umd/Recharts.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/recharts@2/umd/Recharts.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900">
-  <div id="root"></div>
+  <div id="root"><div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#94a3b8;font-family:system-ui;font-size:14px">Loading...</div></div>
   <script>
-
+if (typeof React === 'undefined') {
+  document.getElementById('root').innerHTML = '<div style="color:#f87171;padding:24px;font-family:monospace;background:#1e293b;margin:16px;border-radius:8px">React failed to load from CDN. Check your internet connection.</div>';
+} else {
 const { useState, useMemo } = React;
 const { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } = Recharts;
 
-function SvgIcon({ paths, size=16, className='' }) {
+function SvgIcon({ paths, size, className }) {
+  size = size || 16; className = className || '';
   return React.createElement('svg', {width:size,height:size,viewBox:"0 0 24 24",fill:"none",
     stroke:"currentColor",strokeWidth:"2",strokeLinecap:"round",strokeLinejoin:"round",className},
-    ...[].concat(paths).map((d,i)=>React.createElement('path',{key:i,d})));
+    ...[].concat(paths).map(function(d,i){ return React.createElement('path',{key:i,d:d}); }));
 }
-const Home         = p => React.createElement(SvgIcon,{...p,paths:["M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z","M9 22V12h6v10"]});
-const List         = p => React.createElement(SvgIcon,{...p,paths:"M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"});
-const Building2    = p => React.createElement(SvgIcon,{...p,paths:["M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18z","M6 12H4a2 2 0 0 0-2 2v8h4","M18 9h2a2 2 0 0 1 2 2v11h-4","M10 6h4M10 10h4M10 14h4M10 18h4"]});
-const FolderOpen   = p => React.createElement(SvgIcon,{...p,paths:["M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z","M2 10h20"]});
-const BarChart2    = p => React.createElement(SvgIcon,{...p,paths:["M18 20V10","M12 20V4","M6 20v-6"]});
-const Settings     = p => React.createElement(SvgIcon,{...p,paths:["M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z","M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"]});
-const Plus         = p => React.createElement(SvgIcon,{...p,paths:["M12 5v14","M5 12h14"]});
-const X            = p => React.createElement(SvgIcon,{...p,paths:["M18 6L6 18","M6 6l12 12"]});
-const ChevronDown  = p => React.createElement(SvgIcon,{...p,paths:"M6 9l6 6 6-6"});
-const Upload       = p => React.createElement(SvgIcon,{...p,paths:["M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4","M17 8l-5-5-5 5","M12 3v12"]});
-const Search       = p => React.createElement(SvgIcon,{...p,paths:"M21 21l-6-6m2-5a7 7 0 1 1-14 0 7 7 0 0 1 14 0"});
-const Edit2        = p => React.createElement(SvgIcon,{...p,paths:"M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"});
-const Save         = p => React.createElement(SvgIcon,{...p,paths:["M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z","M17 21v-8H7v8M7 3v5h8"]});
-const Trash2       = p => React.createElement(SvgIcon,{...p,paths:["M3 6h18","M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"]});
-const ExternalLink = p => React.createElement(SvgIcon,{...p,paths:["M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6","M15 3h6v6","M10 14L21 3"]});
-const DollarSign   = p => React.createElement(SvgIcon,{...p,paths:["M12 1v22","M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"]});
-const TrendingUp   = p => React.createElement(SvgIcon,{...p,paths:["M23 6l-9.5 9.5-5-5L1 18","M17 6h6v6"]});
-const TrendingDown = p => React.createElement(SvgIcon,{...p,paths:["M23 18l-9.5-9.5-5 5L1 6","M17 18h6v-6"]});
-const CheckSquare  = p => React.createElement(SvgIcon,{...p,paths:["M9 11l3 3L22 4","M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"]});
-const Square       = p => React.createElement(SvgIcon,{...p,paths:"M3 3h18v18H3z"});
-const Link         = p => React.createElement(SvgIcon,{...p,paths:["M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71","M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"]});
-const RefreshCw    = p => React.createElement(SvgIcon,{...p,paths:["M23 4v6h-6","M1 20v-6h6","M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"]});
-const Check        = p => React.createElement(SvgIcon,{...p,paths:"M20 6L9 17l-5-5"});
-const AlertTriangle= p => React.createElement(SvgIcon,{...p,paths:["M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z","M12 9v4M12 17h.01"]});
-const Tag          = p => React.createElement(SvgIcon,{...p,paths:["M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z","M7 7h.01"]});
-const Calendar     = p => React.createElement(SvgIcon,{...p,paths:["M3 9h18M3 4h18v18H3zM16 2v4M8 2v4"]});
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
-  Cell
-} from "recharts";
-  Home,
-  List,
-  Building2,
-  FolderOpen,
-  BarChart2,
-  Settings,
-  Plus,
-  X,
-  ChevronDown,
-  Upload,
-  Search,
-  Edit2,
-  Save,
-  Trash2,
-  ExternalLink,
-  DollarSign,
-  TrendingUp,
-  TrendingDown,
-  CheckSquare,
-  Square,
-  Link,
-  RefreshCw,
-  Check,
-  AlertTriangle,
-  Tag,
-  Calendar
-} from "lucide-react";
+function mkIcon(paths) { return function(p) { return React.createElement(SvgIcon,Object.assign({},p,{paths:paths})); }; }
+var Home=mkIcon(["M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z","M9 22V12h6v10"]);
+var List=mkIcon("M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01");
+var Building2=mkIcon(["M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18z","M6 12H4a2 2 0 0 0-2 2v8h4","M18 9h2a2 2 0 0 1 2 2v11h-4","M10 6h4M10 10h4M10 14h4M10 18h4"]);
+var FolderOpen=mkIcon(["M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z","M2 10h20"]);
+var BarChart2=mkIcon(["M18 20V10","M12 20V4","M6 20v-6"]);
+var Settings=mkIcon(["M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z","M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"]);
+var Plus=mkIcon(["M12 5v14","M5 12h14"]);
+var X=mkIcon(["M18 6L6 18","M6 6l12 12"]);
+var ChevronDown=mkIcon("M6 9l6 6 6-6");
+var Upload=mkIcon(["M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4","M17 8l-5-5-5 5","M12 3v12"]);
+var Search=mkIcon("M21 21l-6-6m2-5a7 7 0 1 1-14 0 7 7 0 0 1 14 0");
+var Edit2=mkIcon("M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z");
+var Save=mkIcon(["M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z","M17 21v-8H7v8M7 3v5h8"]);
+var Trash2=mkIcon(["M3 6h18","M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"]);
+var ExternalLink=mkIcon(["M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6","M15 3h6v6","M10 14L21 3"]);
+var DollarSign=mkIcon(["M12 1v22","M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"]);
+var TrendingUp=mkIcon(["M23 6l-9.5 9.5-5-5L1 18","M17 6h6v6"]);
+var TrendingDown=mkIcon(["M23 18l-9.5-9.5-5 5L1 6","M17 18h6v-6"]);
+var CheckSquare=mkIcon(["M9 11l3 3L22 4","M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"]);
+var Square=mkIcon("M3 3h18v18H3z");
+var Link=mkIcon(["M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71","M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"]);
+var RefreshCw=mkIcon(["M23 4v6h-6","M1 20v-6h6","M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"]);
+var Check=mkIcon("M20 6L9 17l-5-5");
+var AlertTriangle=mkIcon(["M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z","M12 9v4M12 17h.01"]);
+var Tag=mkIcon(["M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z","M7 7h.01"]);
+var Calendar=mkIcon(["M3 9h18M3 4h18v18H3zM16 2v4M8 2v4"]);
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const FULL_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const CURRENT_MONTH = 4;
@@ -779,9 +740,10 @@ try {
 } catch(err) {
   document.getElementById('root').innerHTML =
     '<div style="color:#f87171;padding:24px;font-family:monospace;font-size:13px;background:#1e293b;margin:16px;border-radius:8px">' +
-    '<strong>Error:</strong><br/>' + err.message + '</div>';
+    '<strong>JS Error:</strong><br/>' + err.message + '</div>';
 }
 
+}
   </script>
 </body>
 </html>
