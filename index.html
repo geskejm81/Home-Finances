@@ -597,6 +597,15 @@ function ProjectsTab({ projects, setProjects, transactions }) {
   }), filtered.length === 0 && /* @__PURE__ */ React.createElement("div", { className: "text-center py-12 text-slate-500" }, "No projects match filters")));
 }
 function AnalyticsTab({ actuals2026 }) {
+  if (!window.Recharts || !window.Recharts.AreaChart) {
+    return React.createElement('div', {className:'p-6 space-y-4'},
+      React.createElement('h2', {className:'text-xl font-bold text-white'}, 'Analytics'),
+      React.createElement('div', {className:'bg-amber-900/30 border border-amber-500/40 rounded-xl p-4 text-amber-300 text-sm'},
+        'Charts library status: ' + (typeof window.Recharts) + '. ' +
+        (window.Recharts ? 'Keys: ' + Object.keys(window.Recharts).slice(0,8).join(', ') : 'Not loaded.')
+      )
+    );
+  }
   const COLORS = ["#06b6d4", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#ec4899", "#84cc16", "#f97316"];
   const monthlyData = useMemo(() => MONTHS.map((m, i) => {
     const income = sumCategory(actuals2026, "Income", i);
