@@ -9,7 +9,7 @@
   <title>Family Budget</title>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900">
@@ -17,11 +17,6 @@
   <script>
 
 var { useState, useMemo } = React;
-var _R = window.Recharts || {};
-var AreaChart=_R.AreaChart,Area=_R.Area,BarChart=_R.BarChart,Bar=_R.Bar,
-    XAxis=_R.XAxis,YAxis=_R.YAxis,CartesianGrid=_R.CartesianGrid,
-    Tooltip=_R.Tooltip,Legend=_R.Legend,ResponsiveContainer=_R.ResponsiveContainer,
-    LineChart=_R.LineChart,Line=_R.Line,PieChart=_R.PieChart,Pie=_R.Pie,Cell=_R.Cell;
 
 function SvgIcon(props){var paths=props.paths,size=props.size||16,cls=props.className||'';
   return React.createElement('svg',{width:size,height:size,viewBox:"0 0 24 24",fill:"none",
@@ -596,56 +591,6 @@ function ProjectsTab({ projects, setProjects, transactions }) {
     return /* @__PURE__ */ React.createElement("div", { key: p.id, className: "bg-slate-800 border border-slate-700 rounded-xl p-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-start justify-between gap-3 mb-3" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-2 mb-1" }, /* @__PURE__ */ React.createElement("h3", { className: "font-semibold text-white" }, p.name), /* @__PURE__ */ React.createElement(Badge, { status: p.status }), /* @__PURE__ */ React.createElement("span", { className: "text-xs text-slate-500" }, p.year)), p.description && /* @__PURE__ */ React.createElement("p", { className: "text-slate-400 text-xs" }, p.description)), /* @__PURE__ */ React.createElement("div", { className: "flex gap-1 shrink-0" }, /* @__PURE__ */ React.createElement("button", { onClick: () => cycleStatus(p.id), className: "px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-xs text-slate-300 transition-colors" }, /* @__PURE__ */ React.createElement(RefreshCw, { size: 11, className: "inline mr-1" }), "Status"), /* @__PURE__ */ React.createElement("button", { onClick: () => del(p.id), className: "p-1 text-slate-500 hover:text-red-400 transition-colors" }, /* @__PURE__ */ React.createElement(Trash2, { size: 14 })))), /* @__PURE__ */ React.createElement("div", { className: "flex gap-6 text-sm mb-3" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-slate-400 text-xs" }, "Budgeted"), /* @__PURE__ */ React.createElement("p", { className: "font-mono font-semibold text-white" }, fmt(p.budgeted))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-slate-400 text-xs" }, "Actual"), /* @__PURE__ */ React.createElement("p", { className: "font-mono font-semibold text-white" }, fmt(p.actual))), linked.length > 0 && /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-slate-400 text-xs" }, "Linked Tx"), /* @__PURE__ */ React.createElement("p", { className: "font-mono font-semibold text-purple-300" }, fmt(linkedTotal)))), p.budgeted > 0 && /* @__PURE__ */ React.createElement("div", { className: "h-1.5 bg-slate-700 rounded-full overflow-hidden" }, /* @__PURE__ */ React.createElement("div", { className: "h-full rounded-full transition-all", style: { width: `${pct}%`, backgroundColor: pct > 100 ? "#ef4444" : pct > 85 ? "#f59e0b" : "#10b981" } })), linked.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "mt-3 pt-3 border-t border-slate-700 space-y-1" }, linked.map((t) => /* @__PURE__ */ React.createElement("div", { key: t.id, className: "flex justify-between text-xs text-slate-400" }, /* @__PURE__ */ React.createElement("span", null, t.date, " \xB7 ", t.description), /* @__PURE__ */ React.createElement("span", { className: "font-mono" }, fmt(t.amount))))));
   }), filtered.length === 0 && /* @__PURE__ */ React.createElement("div", { className: "text-center py-12 text-slate-500" }, "No projects match filters")));
 }
-function AnalyticsTab({ actuals2026 }) {
-  if (!window.Recharts || !window.Recharts.AreaChart) {
-    return React.createElement('div', {className:'p-6 space-y-4'},
-      React.createElement('h2', {className:'text-xl font-bold text-white'}, 'Analytics'),
-      React.createElement('div', {className:'bg-amber-900/30 border border-amber-500/40 rounded-xl p-4 text-amber-300 text-sm'},
-        'Charts library status: ' + (typeof window.Recharts) + '. ' +
-        (window.Recharts ? 'Keys: ' + Object.keys(window.Recharts).slice(0,8).join(', ') : 'Not loaded.')
-      )
-    );
-  }
-  const COLORS = ["#06b6d4", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#ec4899", "#84cc16", "#f97316"];
-  const monthlyData = useMemo(() => MONTHS.map((m, i) => {
-    const income = sumCategory(actuals2026, "Income", i);
-    const fixed = sumCategory(actuals2026, "Fixed Spending", i);
-    const variable = sumCategory(actuals2026, "Variable Spending", i);
-    const savings = sumCategory(actuals2026, "Savings", i);
-    const spending = fixed + variable;
-    return { month: m, income, spending, savings, net: income - spending - savings };
-  }), [actuals2026]);
-  const yoyData = useMemo(() => MONTHS.map((m, i) => {
-    const inc2026 = sumCategory(actuals2026, "Income", i);
-    const exp2026 = sumCategory(actuals2026, "Fixed Spending", i) + sumCategory(actuals2026, "Variable Spending", i);
-    return {
-      month: m,
-      "Income 2026": inc2026 || null,
-      "Income 2025": DATA_2025.income[i],
-      "Spending 2026": exp2026 || null,
-      "Spending 2025": DATA_2025.expenditures[i]
-    };
-  }), [actuals2026]);
-  const catBreakdown = useMemo(() => {
-    const keys = Object.keys(actuals2026["Variable Spending"] || {});
-    const items = keys.map((k) => ({ name: k.length > 22 ? k.slice(0, 22) + "\u2026" : k, value: actuals2026["Variable Spending"][k].reduce((s, v) => s + v, 0) })).filter((i) => i.value > 0).sort((a, b) => b.value - a.value).slice(0, 10);
-    return items;
-  }, [actuals2026]);
-  const catYOY = useMemo(() => {
-    const keys = Object.keys(VAR_2025);
-    return keys.map((k) => ({
-      name: k.length > 18 ? k.slice(0, 18) + "\u2026" : k,
-      "2025": VAR_2025[k],
-      "2026 YTD": (actuals2026["Variable Spending"]?.[k] || []).reduce((s, v) => s + v, 0)
-    })).sort((a, b) => b["2025"] - a["2025"]).slice(0, 10);
-  }, [actuals2026]);
-  const incTotal2026 = DATA_2025.income.reduce((s, v) => s + v, 0);
-  const incTotal2025 = monthlyData.reduce((s, m) => s + m.income, 0);
-  const savRate2026 = monthlyData.filter((m) => m.income > 0).map((m) => m.savings / m.income * 100);
-  const avgSavRate = savRate2026.length ? savRate2026.reduce((s, v) => s + v, 0) / savRate2026.length : 0;
-  const tooltipStyle = { backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: "8px", color: "#fff", fontSize: "12px" };
-  return /* @__PURE__ */ React.createElement("div", { className: "space-y-6" }, /* @__PURE__ */ React.createElement("h2", { className: "text-xl font-bold text-white" }, "Analytics & Trends"), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 md:grid-cols-4 gap-3" }, /* @__PURE__ */ React.createElement(MetricCard, { label: "2025 Total Income", value: fmtCompact(incTotal2026), color: "text-emerald-400" }), /* @__PURE__ */ React.createElement(MetricCard, { label: "2026 YTD Income", value: fmtCompact(incTotal2025), color: "text-sky-400" }), /* @__PURE__ */ React.createElement(MetricCard, { label: "Avg Savings Rate", value: `${avgSavRate.toFixed(1)}%`, color: "text-amber-400" }), /* @__PURE__ */ React.createElement(MetricCard, { label: "2025 Project Spend", value: fmt(31482.11), color: "text-purple-400" })), /* @__PURE__ */ React.createElement("div", { className: "bg-slate-800 border border-slate-700 rounded-xl p-4" }, /* @__PURE__ */ React.createElement("h3", { className: "font-semibold text-white mb-4" }, "2026 Monthly: Income vs Spending"), /* @__PURE__ */ React.createElement(ResponsiveContainer, { width: "100%", height: 220 }, /* @__PURE__ */ React.createElement(AreaChart, { data: monthlyData, margin: { top: 5, right: 10, left: 0, bottom: 5 } }, /* @__PURE__ */ React.createElement("defs", null, /* @__PURE__ */ React.createElement("linearGradient", { id: "incGrad", x1: "0", y1: "0", x2: "0", y2: "1" }, /* @__PURE__ */ React.createElement("stop", { offset: "5%", stopColor: "#10b981", stopOpacity: 0.3 }), /* @__PURE__ */ React.createElement("stop", { offset: "95%", stopColor: "#10b981", stopOpacity: 0 })), /* @__PURE__ */ React.createElement("linearGradient", { id: "expGrad", x1: "0", y1: "0", x2: "0", y2: "1" }, /* @__PURE__ */ React.createElement("stop", { offset: "5%", stopColor: "#ef4444", stopOpacity: 0.3 }), /* @__PURE__ */ React.createElement("stop", { offset: "95%", stopColor: "#ef4444", stopOpacity: 0 }))), /* @__PURE__ */ React.createElement(CartesianGrid, { strokeDasharray: "3 3", stroke: "#334155" }), /* @__PURE__ */ React.createElement(XAxis, { dataKey: "month", tick: { fontSize: 11, fill: "#94a3b8" }, axisLine: false, tickLine: false }), /* @__PURE__ */ React.createElement(YAxis, { tickFormatter: (v) => fmtCompact(v), tick: { fontSize: 11, fill: "#94a3b8" }, axisLine: false, tickLine: false }), /* @__PURE__ */ React.createElement(Tooltip, { contentStyle: tooltipStyle, formatter: (v, n) => [fmt(v), n] }), /* @__PURE__ */ React.createElement(Legend, { wrapperStyle: { fontSize: "12px", color: "#94a3b8" } }), /* @__PURE__ */ React.createElement(Area, { type: "monotone", dataKey: "income", name: "Income", stroke: "#10b981", fill: "url(#incGrad)", strokeWidth: 2 }), /* @__PURE__ */ React.createElement(Area, { type: "monotone", dataKey: "spending", name: "Spending", stroke: "#ef4444", fill: "url(#expGrad)", strokeWidth: 2 })))), /* @__PURE__ */ React.createElement("div", { className: "bg-slate-800 border border-slate-700 rounded-xl p-4" }, /* @__PURE__ */ React.createElement("h3", { className: "font-semibold text-white mb-4" }, "Year-Over-Year: Income & Spending (2025 vs 2026)"), /* @__PURE__ */ React.createElement(ResponsiveContainer, { width: "100%", height: 220 }, /* @__PURE__ */ React.createElement(BarChart, { data: yoyData, margin: { top: 5, right: 10, left: 0, bottom: 5 } }, /* @__PURE__ */ React.createElement(CartesianGrid, { strokeDasharray: "3 3", stroke: "#334155" }), /* @__PURE__ */ React.createElement(XAxis, { dataKey: "month", tick: { fontSize: 11, fill: "#94a3b8" }, axisLine: false, tickLine: false }), /* @__PURE__ */ React.createElement(YAxis, { tickFormatter: (v) => fmtCompact(v), tick: { fontSize: 11, fill: "#94a3b8" }, axisLine: false, tickLine: false }), /* @__PURE__ */ React.createElement(Tooltip, { contentStyle: tooltipStyle, formatter: (v, n) => [v ? fmt(v) : "N/A", n] }), /* @__PURE__ */ React.createElement(Legend, { wrapperStyle: { fontSize: "12px", color: "#94a3b8" } }), /* @__PURE__ */ React.createElement(Bar, { dataKey: "Income 2025", fill: "#10b981", fillOpacity: 0.5, radius: [2, 2, 0, 0] }), /* @__PURE__ */ React.createElement(Bar, { dataKey: "Income 2026", fill: "#10b981", radius: [2, 2, 0, 0] }), /* @__PURE__ */ React.createElement(Bar, { dataKey: "Spending 2025", fill: "#ef4444", fillOpacity: 0.5, radius: [2, 2, 0, 0] }), /* @__PURE__ */ React.createElement(Bar, { dataKey: "Spending 2026", fill: "#ef4444", radius: [2, 2, 0, 0] })))), /* @__PURE__ */ React.createElement("div", { className: "grid md:grid-cols-2 gap-4" }, /* @__PURE__ */ React.createElement("div", { className: "bg-slate-800 border border-slate-700 rounded-xl p-4" }, /* @__PURE__ */ React.createElement("h3", { className: "font-semibold text-white mb-4" }, "2026 YTD Variable Spending"), /* @__PURE__ */ React.createElement(ResponsiveContainer, { width: "100%", height: 220 }, /* @__PURE__ */ React.createElement(BarChart, { data: catBreakdown, layout: "vertical", margin: { top: 0, right: 60, left: 0, bottom: 0 } }, /* @__PURE__ */ React.createElement(CartesianGrid, { strokeDasharray: "3 3", stroke: "#334155", horizontal: false }), /* @__PURE__ */ React.createElement(XAxis, { type: "number", tickFormatter: (v) => fmtCompact(v), tick: { fontSize: 10, fill: "#94a3b8" }, axisLine: false, tickLine: false }), /* @__PURE__ */ React.createElement(YAxis, { type: "category", dataKey: "name", tick: { fontSize: 10, fill: "#94a3b8" }, axisLine: false, tickLine: false, width: 120 }), /* @__PURE__ */ React.createElement(Tooltip, { contentStyle: tooltipStyle, formatter: (v) => [fmt(v), "Amount"] }), /* @__PURE__ */ React.createElement(Bar, { dataKey: "value", radius: [0, 3, 3, 0] }, catBreakdown.map((_, i) => /* @__PURE__ */ React.createElement(Cell, { key: i, fill: COLORS[i % COLORS.length] })))))), /* @__PURE__ */ React.createElement("div", { className: "bg-slate-800 border border-slate-700 rounded-xl p-4" }, /* @__PURE__ */ React.createElement("h3", { className: "font-semibold text-white mb-4" }, "Variable Spending: 2025 vs 2026 YTD"), /* @__PURE__ */ React.createElement(ResponsiveContainer, { width: "100%", height: 220 }, /* @__PURE__ */ React.createElement(BarChart, { data: catYOY, layout: "vertical", margin: { top: 0, right: 10, left: 0, bottom: 0 } }, /* @__PURE__ */ React.createElement(CartesianGrid, { strokeDasharray: "3 3", stroke: "#334155", horizontal: false }), /* @__PURE__ */ React.createElement(XAxis, { type: "number", tickFormatter: (v) => fmtCompact(v), tick: { fontSize: 10, fill: "#94a3b8" }, axisLine: false, tickLine: false }), /* @__PURE__ */ React.createElement(YAxis, { type: "category", dataKey: "name", tick: { fontSize: 10, fill: "#94a3b8" }, axisLine: false, tickLine: false, width: 120 }), /* @__PURE__ */ React.createElement(Tooltip, { contentStyle: tooltipStyle, formatter: (v, n) => [fmt(v), n] }), /* @__PURE__ */ React.createElement(Legend, { wrapperStyle: { fontSize: "11px", color: "#94a3b8" } }), /* @__PURE__ */ React.createElement(Bar, { dataKey: "2025", fill: "#06b6d4", fillOpacity: 0.6, radius: [0, 3, 3, 0] }), /* @__PURE__ */ React.createElement(Bar, { dataKey: "2026 YTD", fill: "#8b5cf6", radius: [0, 3, 3, 0] }))))), /* @__PURE__ */ React.createElement("div", { className: "bg-slate-800 border border-slate-700 rounded-xl p-4" }, /* @__PURE__ */ React.createElement("h3", { className: "font-semibold text-white mb-4" }, "2026 Monthly Net & Savings"), /* @__PURE__ */ React.createElement(ResponsiveContainer, { width: "100%", height: 180 }, /* @__PURE__ */ React.createElement(LineChart, { data: monthlyData, margin: { top: 5, right: 10, left: 0, bottom: 5 } }, /* @__PURE__ */ React.createElement(CartesianGrid, { strokeDasharray: "3 3", stroke: "#334155" }), /* @__PURE__ */ React.createElement(XAxis, { dataKey: "month", tick: { fontSize: 11, fill: "#94a3b8" }, axisLine: false, tickLine: false }), /* @__PURE__ */ React.createElement(YAxis, { tickFormatter: (v) => fmtCompact(v), tick: { fontSize: 11, fill: "#94a3b8" }, axisLine: false, tickLine: false }), /* @__PURE__ */ React.createElement(Tooltip, { contentStyle: tooltipStyle, formatter: (v, n) => [fmt(v), n] }), /* @__PURE__ */ React.createElement(Legend, { wrapperStyle: { fontSize: "12px", color: "#94a3b8" } }), /* @__PURE__ */ React.createElement(Line, { type: "monotone", dataKey: "net", name: "Net", stroke: "#10b981", strokeWidth: 2, dot: { fill: "#10b981", r: 3 }, connectNulls: false }), /* @__PURE__ */ React.createElement(Line, { type: "monotone", dataKey: "savings", name: "Savings", stroke: "#f59e0b", strokeWidth: 2, dot: { fill: "#f59e0b", r: 3 }, connectNulls: false })))));
-}
 function SettingsTab({ categories, setCategories, budgets, setBudgets }) {
   const [activeSec, setActiveSec] = useState("budgets");
   const [editCat, setEditCat] = useState("Variable Spending");
@@ -738,6 +683,194 @@ function BudgetApp() {
       t.label
     );
   }))), /* @__PURE__ */ React.createElement("main", { className: "max-w-6xl mx-auto px-4 py-6" }, tab === "dashboard" && /* @__PURE__ */ React.createElement(DashboardTab, { actuals2026, budgets, categories }), tab === "transactions" && /* @__PURE__ */ React.createElement(TransactionsTab, { transactions, setTransactions, categories, projects }), tab === "knauf" && /* @__PURE__ */ React.createElement(KnaufTab, { transactions }), tab === "projects" && /* @__PURE__ */ React.createElement(ProjectsTab, { projects, setProjects, transactions }), tab === "analytics" && /* @__PURE__ */ React.createElement(AnalyticsTab, { actuals2026 }), tab === "settings" && /* @__PURE__ */ React.createElement(SettingsTab, { categories, setCategories, budgets, setBudgets })));
+}
+
+function AnalyticsTab({ actuals2026 }) {
+  const chartRefs = {
+    income: React.useRef(null),
+    yoy: React.useRef(null),
+    varSpend: React.useRef(null),
+    yoyVar: React.useRef(null),
+    net: React.useRef(null)
+  };
+  const charts = React.useRef({});
+  const monthlyData = React.useMemo(() => MONTHS.map((m, i) => ({
+    month: m,
+    income: sumCategory(actuals2026, "Income", i),
+    spending: sumCategory(actuals2026, "Fixed Spending", i) + sumCategory(actuals2026, "Variable Spending", i),
+    savings: sumCategory(actuals2026, "Savings", i),
+    net: sumCategory(actuals2026, "Income", i) - sumCategory(actuals2026, "Fixed Spending", i) - sumCategory(actuals2026, "Variable Spending", i) - sumCategory(actuals2026, "Savings", i)
+  })), [actuals2026]);
+  const catBreakdown = React.useMemo(() => {
+    const keys = Object.keys(actuals2026["Variable Spending"] || {});
+    return keys.map((k) => ({
+      name: k.length > 22 ? k.slice(0, 22) + "\u2026" : k,
+      value: actuals2026["Variable Spending"][k].reduce((s, v) => s + v, 0)
+    })).filter((i) => i.value > 0).sort((a, b) => b.value - a.value).slice(0, 10);
+  }, [actuals2026]);
+  const catYOY = React.useMemo(() => {
+    return Object.keys(VAR_2025).map((k) => ({
+      name: k.length > 20 ? k.slice(0, 20) + "\u2026" : k,
+      v2025: VAR_2025[k],
+      v2026: (actuals2026["Variable Spending"]?.[k] || []).reduce((s, v) => s + v, 0)
+    })).sort((a, b) => b.v2025 - a.v2025).slice(0, 8);
+  }, [actuals2026]);
+  const gridColor = "rgba(148,163,184,0.15)", textColor = "#94a3b8", fontFamily = "'DM Sans',system-ui,sans-serif";
+  const tooltipCfg = { backgroundColor: "#1e293b", borderColor: "#334155", borderWidth: 1, titleColor: "#fff", bodyColor: "#cbd5e1", padding: 10 };
+  const axCfg = (fmt2) => ({ ticks: { color: textColor, font: { size: 11, family: fontFamily }, callback: fmt2 }, grid: { color: gridColor }, border: { display: false } });
+  const fmtK = (v) => v >= 1e3 ? "$" + (v / 1e3).toFixed(1) + "k" : "$" + v.toFixed(0);
+  React.useEffect(() => {
+    if (!window.Chart) return;
+    const C = window.Chart;
+    const destroy = (k) => {
+      if (charts.current[k]) {
+        charts.current[k].destroy();
+        delete charts.current[k];
+      }
+    };
+    if (chartRefs.income.current) {
+      destroy("income");
+      charts.current.income = new C(chartRefs.income.current, {
+        type: "line",
+        data: {
+          labels: MONTHS,
+          datasets: [
+            { label: "Income", data: monthlyData.map((d) => d.income || null), borderColor: "#10b981", backgroundColor: "rgba(16,185,129,0.15)", fill: true, tension: 0.3, pointRadius: 4, pointBackgroundColor: "#10b981" },
+            { label: "Spending", data: monthlyData.map((d) => d.spending || null), borderColor: "#ef4444", backgroundColor: "rgba(239,68,68,0.15)", fill: true, tension: 0.3, pointRadius: 4, pointBackgroundColor: "#ef4444" }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { labels: { color: textColor, font: { family: fontFamily } } }, tooltip: tooltipCfg },
+          scales: { x: axCfg(), y: axCfg(fmtK) }
+        }
+      });
+    }
+    if (chartRefs.yoy.current) {
+      destroy("yoy");
+      charts.current.yoy = new C(chartRefs.yoy.current, {
+        type: "bar",
+        data: {
+          labels: MONTHS,
+          datasets: [
+            { label: "Income 2025", data: DATA_2025.income, backgroundColor: "rgba(16,185,129,0.4)", borderRadius: 3 },
+            { label: "Income 2026", data: monthlyData.map((d) => d.income || null), backgroundColor: "rgba(16,185,129,0.9)", borderRadius: 3 },
+            { label: "Spending 2025", data: DATA_2025.expenditures, backgroundColor: "rgba(239,68,68,0.4)", borderRadius: 3 },
+            { label: "Spending 2026", data: monthlyData.map((d) => d.spending || null), backgroundColor: "rgba(239,68,68,0.9)", borderRadius: 3 }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { labels: { color: textColor, font: { size: 11, family: fontFamily } } }, tooltip: tooltipCfg },
+          scales: { x: axCfg(), y: axCfg(fmtK) }
+        }
+      });
+    }
+    if (chartRefs.varSpend.current) {
+      destroy("varSpend");
+      charts.current.varSpend = new C(chartRefs.varSpend.current, {
+        type: "bar",
+        data: {
+          labels: catBreakdown.map((d) => d.name),
+          datasets: [{
+            label: "Amount",
+            data: catBreakdown.map((d) => d.value),
+            backgroundColor: ["#06b6d4", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#ec4899", "#84cc16", "#f97316", "#06b6d4", "#10b981"],
+            borderRadius: 3
+          }]
+        },
+        options: {
+          indexAxis: "y",
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: tooltipCfg },
+          scales: { x: axCfg(fmtK), y: { ticks: { color: textColor, font: { size: 10, family: fontFamily } }, grid: { color: gridColor }, border: { display: false } } }
+        }
+      });
+    }
+    if (chartRefs.yoyVar.current) {
+      destroy("yoyVar");
+      charts.current.yoyVar = new C(chartRefs.yoyVar.current, {
+        type: "bar",
+        data: {
+          labels: catYOY.map((d) => d.name),
+          datasets: [
+            { label: "2025", data: catYOY.map((d) => d.v2025), backgroundColor: "rgba(6,182,212,0.6)", borderRadius: 3 },
+            { label: "2026 YTD", data: catYOY.map((d) => d.v2026), backgroundColor: "rgba(139,92,246,0.8)", borderRadius: 3 }
+          ]
+        },
+        options: {
+          indexAxis: "y",
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { labels: { color: textColor, font: { size: 11, family: fontFamily } } }, tooltip: tooltipCfg },
+          scales: { x: axCfg(fmtK), y: { ticks: { color: textColor, font: { size: 10, family: fontFamily } }, grid: { color: gridColor }, border: { display: false } } }
+        }
+      });
+    }
+    if (chartRefs.net.current) {
+      destroy("net");
+      charts.current.net = new C(chartRefs.net.current, {
+        type: "line",
+        data: {
+          labels: MONTHS,
+          datasets: [
+            { label: "Net", data: monthlyData.map((d) => d.net || null), borderColor: "#10b981", tension: 0.3, pointRadius: 4, pointBackgroundColor: "#10b981" },
+            { label: "Savings", data: monthlyData.map((d) => d.savings || null), borderColor: "#f59e0b", tension: 0.3, pointRadius: 4, pointBackgroundColor: "#f59e0b" }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { labels: { color: textColor, font: { family: fontFamily } } }, tooltip: tooltipCfg },
+          scales: { x: axCfg(), y: axCfg(fmtK) }
+        }
+      });
+    }
+    return () => {
+      Object.keys(charts.current).forEach(destroy);
+    };
+  }, [monthlyData, catBreakdown, catYOY]);
+  const incTotal2025 = DATA_2025.income.reduce((s, v) => s + v, 0);
+  const incTotal2026 = monthlyData.reduce((s, m) => s + m.income, 0);
+  const savRates = monthlyData.filter((m) => m.income > 0).map((m) => m.savings / m.income * 100);
+  const avgSavRate = savRates.length ? savRates.reduce((s, v) => s + v, 0) / savRates.length : 0;
+  const card = (lbl, val, color) => React.createElement(
+    "div",
+    { className: "bg-slate-800 border border-slate-700 rounded-xl p-4" },
+    React.createElement("p", { className: "text-slate-400 text-xs font-medium uppercase tracking-wider mb-1" }, lbl),
+    React.createElement("p", { className: "text-2xl font-bold font-mono " + color }, val)
+  );
+  const chartBox = (title, ref, h = 220) => React.createElement(
+    "div",
+    { className: "bg-slate-800 border border-slate-700 rounded-xl p-4" },
+    React.createElement("h3", { className: "font-semibold text-white mb-4" }, title),
+    React.createElement("div", { style: { height: h } }, React.createElement("canvas", { ref }))
+  );
+  return React.createElement(
+    "div",
+    { className: "space-y-6" },
+    React.createElement("h2", { className: "text-xl font-bold text-white" }, "Analytics & Trends"),
+    React.createElement(
+      "div",
+      { className: "grid grid-cols-2 md:grid-cols-4 gap-3" },
+      card("2025 Total Income", fmt(incTotal2025), "text-emerald-400"),
+      card("2026 YTD Income", fmt(incTotal2026), "text-sky-400"),
+      card("Avg Savings Rate", avgSavRate.toFixed(1) + "%", "text-amber-400"),
+      card("2025 Project Spend", fmt(31482.11), "text-purple-400")
+    ),
+    chartBox("2026 Monthly: Income vs Spending", chartRefs.income, 220),
+    chartBox("Year-Over-Year: Income & Spending (2025 vs 2026)", chartRefs.yoy, 220),
+    React.createElement(
+      "div",
+      { className: "grid md:grid-cols-2 gap-4" },
+      chartBox("2026 YTD Variable Spending", chartRefs.varSpend, 260),
+      chartBox("Variable Spending: 2025 vs 2026 YTD", chartRefs.yoyVar, 260)
+    ),
+    chartBox("2026 Monthly Net & Savings", chartRefs.net, 180)
+  );
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(BudgetApp));
