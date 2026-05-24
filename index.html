@@ -7,9 +7,9 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <meta name="apple-mobile-web-app-title" content="Family Budget"/>
   <title>Family Budget</title>
-  <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/recharts@2/umd/Recharts.js"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js" onerror="window._rechartsErr=true"></script>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900">
@@ -18,22 +18,27 @@
     window.onerror = function(msg, src, line, col, err) {
       document.getElementById('root').innerHTML =
         '<div style="color:#f87171;padding:24px;font-family:monospace;font-size:13px;background:#1e293b;margin:16px;border-radius:8px;border:1px solid #ef4444">' +
-        '<strong>Error (line ' + line + '):</strong><br/>' + msg + '</div>';
+        '<strong>Error (line ' + line + '):</strong><br/>' + msg +
+        (err ? '<br/><pre style=\"font-size:11px;margin-top:8px\">' + err.stack + '</pre>' : '') + '</div>';
       return true;
     };
-  </script>
-  <script>
+    if (window._rechartsErr) {
+      document.getElementById('root').innerHTML =
+        '<div style="color:#f87171;padding:24px;font-family:monospace;background:#1e293b;margin:16px;border-radius:8px">Recharts CDN failed to load.</div>';
+    } else {
 
 var { useState, useMemo } = React;
-var { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } = Recharts;
+var _R = window.Recharts || {};
+var AreaChart=_R.AreaChart, Area=_R.Area, BarChart=_R.BarChart, Bar=_R.Bar,
+    XAxis=_R.XAxis, YAxis=_R.YAxis, CartesianGrid=_R.CartesianGrid,
+    Tooltip=_R.Tooltip, Legend=_R.Legend, ResponsiveContainer=_R.ResponsiveContainer,
+    LineChart=_R.LineChart, Line=_R.Line, PieChart=_R.PieChart, Pie=_R.Pie, Cell=_R.Cell;
 
 function SvgIcon(props) {
-  var paths = props.paths; var size = props.size || 16; var className = props.className || '';
-  var pathEls = [].concat(paths).map(function(d,i){ return React.createElement('path',{key:i,d:d}); });
+  var paths = props.paths; var size = props.size || 16; var cls = props.className || '';
   return React.createElement('svg', {width:size,height:size,viewBox:"0 0 24 24",fill:"none",
-    stroke:"currentColor",strokeWidth:"2",strokeLinecap:"round",strokeLinejoin:"round",className:className},
-    pathEls);
+    stroke:"currentColor",strokeWidth:"2",strokeLinecap:"round",strokeLinejoin:"round",className:cls},
+    [].concat(paths).map(function(d,i){ return React.createElement('path',{key:i,d:d}); }));
 }
 function mkIcon(paths) { return function(p) { return React.createElement(SvgIcon, Object.assign({},p,{paths:paths})); }; }
 var Home=mkIcon(["M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z","M9 22V12h6v10"]);
@@ -744,6 +749,7 @@ function BudgetApp() {
 
 ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(BudgetApp));
 
+    }
   </script>
 </body>
 </html>
