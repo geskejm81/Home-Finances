@@ -9,14 +9,21 @@
   <title>Family Budget</title>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
 </head>
 <body class="bg-slate-900">
   <div id="root"></div>
   <script>
 
 var { useState, useMemo } = React;
+var _R = window.Recharts || {};
+var AreaChart=_R.AreaChart,Area=_R.Area,BarChart=_R.BarChart,Bar=_R.Bar,
+    XAxis=_R.XAxis,YAxis=_R.YAxis,CartesianGrid=_R.CartesianGrid,
+    Tooltip=_R.Tooltip,Legend=_R.Legend,ResponsiveContainer=_R.ResponsiveContainer,
+    LineChart=_R.LineChart,Line=_R.Line,PieChart=_R.PieChart,Pie=_R.Pie,Cell=_R.Cell;
 
 function SvgIcon(props){var paths=props.paths,size=props.size||16,cls=props.className||'';
   return React.createElement('svg',{width:size,height:size,viewBox:"0 0 24 24",fill:"none",
@@ -46,6 +53,122 @@ var Check=mkIcon(["M20 6L9 17l-5-5"]);
 var AlertTriangle=mkIcon(["M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z","M12 9v4M12 17h.01"]);
 var Tag=mkIcon(["M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z","M7 7h.01"]);
 var Calendar=mkIcon(["M3 9h18M3 4h18v18H3zM16 2v4M8 2v4"]);
+
+// ─── SUPABASE + PLAID INTEGRATION ─────────────────────────────────────────────
+var SB_URL = 'https://baujqfofkheszyhfcewn.supabase.co';
+var EDGE = SB_URL + '/functions/v1';
+
+function sbKey() { return localStorage.getItem('sb_anon_key') || ''; }
+function sbHdrs() {
+  var k = sbKey();
+  return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + k, 'apikey': k };
+}
+function edgeFn(fn, body) {
+  return fetch(EDGE + '/' + fn, { method: 'POST', headers: sbHdrs(), body: JSON.stringify(body) }).then(function(r){ return r.json(); });
+}
+function sbFetch(table, qs) {
+  return fetch(SB_URL + '/rest/v1/' + table + '?' + (qs||''), { headers: sbHdrs() }).then(function(r){ return r.json(); });
+}
+
+function openPlaidLink(onSuccess, onError) {
+  edgeFn('plaid-link', { action: 'create_link_token' }).then(function(data) {
+    if (!data.link_token) { onError('Could not create link token: ' + JSON.stringify(data)); return; }
+    var handler = window.Plaid.create({
+      token: data.link_token,
+      onSuccess: function(public_token, metadata) {
+        edgeFn('plaid-link', {
+          action: 'exchange_token',
+          public_token: public_token,
+          institution_name: metadata.institution ? metadata.institution.name : 'Unknown',
+          accounts: metadata.accounts,
+        }).then(function(result) {
+          if (result.success) onSuccess();
+          else onError('Token exchange failed: ' + JSON.stringify(result));
+        });
+      },
+      onExit: function(err) { if (err) onError(err.display_message || err.error_message || 'Plaid exited'); },
+    });
+    handler.open();
+  }).catch(function(e){ onError(e.message); });
+}
+
+// ─── ACCOUNTS PANEL ───────────────────────────────────────────────────────────
+function AccountsPanel({ accounts, syncing, lastSync, onSync, onConnect, setupRequired, onSetupKey }) {
+  var [keyInput, setKeyInput] = React.useState('');
+
+  if (setupRequired) {
+    return React.createElement('div', { className: 'bg-slate-800 border border-sky-500/30 rounded-xl p-5 mb-4' },
+      React.createElement('h3', { className: 'font-bold text-white mb-1' }, 'Connect to Supabase'),
+      React.createElement('p', { className: 'text-slate-400 text-sm mb-3' },
+        'Enter your Supabase Publishable key to enable bank connections and data sync. Find it in Supabase → Settings → API Keys.'
+      ),
+      React.createElement('div', { className: 'flex gap-2' },
+        React.createElement('input', {
+          value: keyInput,
+          onChange: function(e){ setKeyInput(e.target.value); },
+          placeholder: 'sb_publishable_...',
+          className: 'flex-1 bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-sky-500',
+        }),
+        React.createElement('button', {
+          onClick: function(){ if(keyInput.trim()) onSetupKey(keyInput.trim()); },
+          className: 'px-4 py-2 bg-sky-600 hover:bg-sky-500 rounded-lg text-white text-sm font-medium transition-colors',
+        }, 'Save & Connect')
+      )
+    );
+  }
+
+  var checking = accounts.filter(function(a){ return a.subtype === 'checking'; });
+  var savings  = accounts.filter(function(a){ return a.subtype === 'savings'; });
+  var credit   = accounts.filter(function(a){ return a.type === 'credit'; });
+
+  function AcctCard(a) {
+    var bal = a.current_balance || 0;
+    var isCredit = a.type === 'credit';
+    var color = isCredit ? (bal > 0 ? 'text-red-400' : 'text-emerald-400') : 'text-emerald-400';
+    var typeLabel = { checking:'Checking', savings:'Savings', 'credit card':'Credit', credit:'Credit' }[a.subtype||a.type] || a.type;
+    return React.createElement('div', { key: a.plaid_account_id || a.id, className: 'bg-slate-900/50 border border-slate-700 rounded-lg p-3 min-w-40' },
+      React.createElement('p', { className: 'text-slate-400 text-xs mb-0.5' }, a.name + (a.mask ? ' ••' + a.mask : '')),
+      React.createElement('p', { className: 'text-xs text-slate-500 mb-1' }, typeLabel),
+      React.createElement('p', { className: 'text-lg font-bold font-mono ' + color },
+        (isCredit && bal > 0 ? '-' : '') + fmt(Math.abs(bal))
+      ),
+      a.available_balance != null && React.createElement('p', { className: 'text-slate-500 text-xs mt-0.5' },
+        'Avail: ' + fmt(a.available_balance)
+      )
+    );
+  }
+
+  return React.createElement('div', { className: 'bg-slate-800 border border-slate-700 rounded-xl p-4 mb-4' },
+    React.createElement('div', { className: 'flex items-center justify-between mb-3' },
+      React.createElement('h3', { className: 'font-semibold text-white' }, 'Connected Accounts'),
+      React.createElement('div', { className: 'flex items-center gap-2' },
+        lastSync && React.createElement('span', { className: 'text-slate-500 text-xs' }, 'Synced ' + lastSync),
+        React.createElement('button', {
+          onClick: onSync,
+          disabled: syncing,
+          className: 'flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 rounded-lg text-xs text-white font-medium transition-colors',
+        },
+          syncing
+            ? React.createElement('span', null, 'Syncing...')
+            : React.createElement(React.Fragment, null,
+                React.createElement(RefreshCw, { size: 12 }),
+                React.createElement('span', null, 'Sync')
+              )
+        ),
+        React.createElement('button', {
+          onClick: onConnect,
+          className: 'flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs text-white font-medium transition-colors',
+        }, React.createElement(Plus, { size: 12 }), React.createElement('span', null, 'Add Bank'))
+      )
+    ),
+    accounts.length === 0
+      ? React.createElement('p', { className: 'text-slate-500 text-sm py-4 text-center' },
+          'No accounts connected yet. Click "Add Bank" to link your first account.')
+      : React.createElement('div', { className: 'flex gap-3 overflow-x-auto pb-1' },
+          ...[].concat(checking, savings, credit).map(AcctCard)
+        )
+  );
+}
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const FULL_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const CURRENT_MONTH = 4;
@@ -650,6 +773,54 @@ function SettingsTab({ categories, setCategories, budgets, setBudgets }) {
   ))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "text-xs text-slate-400 mb-1 block" }, "Environment"), /* @__PURE__ */ React.createElement(Select, { value: plaidCfg.env, onChange: (v) => setPlaidCfg((c) => ({ ...c, env: v })), options: ["sandbox", "production"], className: "w-full" })), /* @__PURE__ */ React.createElement("button", { onClick: savePlaid, className: "flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-500 rounded-lg text-sm font-medium text-white transition-colors" }, saved ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(Check, { size: 14 }), " Saved!") : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(Save, { size: 14 }), " Save Config"))), /* @__PURE__ */ React.createElement("div", { className: "bg-slate-800 border border-slate-700 rounded-xl p-4 text-sm text-slate-400 space-y-2" }, /* @__PURE__ */ React.createElement("h3", { className: "font-semibold text-white text-sm" }, "How Bank Connection Works"), /* @__PURE__ */ React.createElement("ol", { className: "list-decimal list-inside space-y-1" }, /* @__PURE__ */ React.createElement("li", null, "After deploying to Vercel, your backend creates a Plaid link token"), /* @__PURE__ */ React.createElement("li", null, 'You click "Connect Bank" \u2192 Plaid Link opens \u2192 log into your bank'), /* @__PURE__ */ React.createElement("li", null, "Plaid returns a token \u2192 transactions sync automatically"), /* @__PURE__ */ React.createElement("li", null, "New transactions appear in the Transactions tab for categorization")), /* @__PURE__ */ React.createElement("p", { className: "text-slate-500 text-xs" }, "Trial plan supports up to 10 connected accounts \u2014 plenty for checking + savings + all credit cards."))));
 }
 function BudgetApp() {
+  var [accounts, setAccounts] = React.useState([]);
+  var [syncing, setSyncing] = React.useState(false);
+  var [lastSync, setLastSync] = React.useState(null);
+  var [setupRequired, setSetupRequired] = React.useState(!localStorage.getItem('sb_anon_key'));
+  var [plaidError, setPlaidError] = React.useState('');
+
+  function loadAccounts() {
+    if (!sbKey()) return;
+    sbFetch('accounts', 'select=*&order=type').then(function(data){
+      if (Array.isArray(data)) setAccounts(data);
+    }).catch(function(){});
+  }
+
+  function doSync() {
+    if (!sbKey()) return;
+    setSyncing(true);
+    edgeFn('plaid-sync', { action: 'balances' }).then(function(){
+      return edgeFn('plaid-sync', { action: 'sync' });
+    }).then(function(result){
+      loadAccounts();
+      var now = new Date();
+      setLastSync(now.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
+      setSyncing(false);
+    }).catch(function(){ setSyncing(false); });
+  }
+
+  function handleConnect() {
+    if (!window.Plaid) { setPlaidError('Plaid not loaded. Check your internet connection.'); return; }
+    openPlaidLink(
+      function(){ loadAccounts(); doSync(); },
+      function(err){ setPlaidError(String(err)); }
+    );
+  }
+
+  function handleSetupKey(key) {
+    localStorage.setItem('sb_anon_key', key);
+    setSetupRequired(false);
+    loadAccounts();
+  }
+
+  React.useEffect(function(){
+    if (!setupRequired) {
+      loadAccounts();
+      doSync();
+    }
+  }, [setupRequired]);
+
+
   const [tab, setTab] = useState("dashboard");
   const [transactions, setTransactions] = useState(INIT_TRANSACTIONS);
   const [projects, setProjects] = useState(INIT_PROJECTS);
@@ -682,9 +853,23 @@ function BudgetApp() {
       /* @__PURE__ */ React.createElement(Icon, { size: 13 }),
       t.label
     );
-  }))), /* @__PURE__ */ React.createElement("main", { className: "max-w-6xl mx-auto px-4 py-6" }, tab === "dashboard" && /* @__PURE__ */ React.createElement(DashboardTab, { actuals2026, budgets, categories }), tab === "transactions" && /* @__PURE__ */ React.createElement(TransactionsTab, { transactions, setTransactions, categories, projects }), tab === "knauf" && /* @__PURE__ */ React.createElement(KnaufTab, { transactions }), tab === "projects" && /* @__PURE__ */ React.createElement(ProjectsTab, { projects, setProjects, transactions }), tab === "analytics" && /* @__PURE__ */ React.createElement(AnalyticsTab, { actuals2026 }), tab === "settings" && /* @__PURE__ */ React.createElement(SettingsTab, { categories, setCategories, budgets, setBudgets })));
+  }))), /* @__PURE__ */ React.createElement("main", { className: "max-w-6xl mx-auto px-4 py-6" }, tab === "dashboard" && React.createElement(React.Fragment, null,
+        React.createElement(AccountsPanel, {
+          accounts: accounts,
+          syncing: syncing,
+          lastSync: lastSync,
+          onSync: doSync,
+          onConnect: handleConnect,
+          setupRequired: setupRequired,
+          onSetupKey: handleSetupKey,
+        }),
+        plaidError && React.createElement('div', {className:'bg-red-900/30 border border-red-500/30 rounded-xl px-4 py-3 text-red-400 text-sm mb-4'},
+          plaidError,
+          React.createElement('button', {onClick:function(){setPlaidError('');}, className:'ml-3 text-red-300 hover:text-white'}, '×')
+        ),
+        React.createElement(DashboardTab, { actuals2026: actuals2026, budgets: budgets, categories: categories })
+      ), tab === "transactions" && /* @__PURE__ */ React.createElement(TransactionsTab, { transactions, setTransactions, categories, projects }), tab === "knauf" && /* @__PURE__ */ React.createElement(KnaufTab, { transactions }), tab === "projects" && /* @__PURE__ */ React.createElement(ProjectsTab, { projects, setProjects, transactions }), tab === "analytics" && /* @__PURE__ */ React.createElement(AnalyticsTab, { actuals2026 }), tab === "settings" && /* @__PURE__ */ React.createElement(SettingsTab, { categories, setCategories, budgets, setBudgets })));
 }
-
 function AnalyticsTab({ actuals2026 }) {
   const chartRefs = {
     income: React.useRef(null),
