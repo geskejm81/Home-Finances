@@ -13,6 +13,14 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+  <script>
+    window.onerror = function(msg, src, line, col, err) {
+      document.getElementById('root').innerHTML =
+        '<div style="color:#f87171;padding:24px;font-family:monospace;font-size:13px;background:#1e293b;margin:16px;border-radius:8px;border:1px solid #ef4444;white-space:pre-wrap">' +
+        '<strong>Error on line ' + line + ':</strong>\n' + msg + 
+        (err && err.stack ? '\n\n' + err.stack : '') + '</div>';
+    };
+  </script>
 </head>
 <body class="bg-slate-900">
   <div id="root"></div>
