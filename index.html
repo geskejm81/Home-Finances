@@ -30,6 +30,7 @@ function _sbKey(){return localStorage.getItem('sb_anon_key')||'';}
 function _sbHdrs(){var k=_sbKey();return {'Content-Type':'application/json','Authorization':'Bearer '+k,'apikey':k};}
 function _edgeFn(fn,body){return fetch(EDGE+'/'+fn,{method:'POST',headers:_sbHdrs(),body:JSON.stringify(body)}).then(function(r){return r.json();});}
 function _sbFetch(table,qs){return fetch(SB_URL+'/rest/v1/'+table+'?'+(qs||'select=*'),{headers:_sbHdrs()}).then(function(r){return r.json();});}
+function _sbInsert(table,data){return fetch(SB_URL+'/rest/v1/'+table,{method:'POST',headers:Object.assign({},_sbHdrs(),{'Prefer':'return=minimal'}),body:JSON.stringify(data)}).catch(function(){});}
 function _openPlaid(onOk,onErr){_edgeFn('plaid-link',{action:'create_link_token'}).then(function(d){if(!d.link_token){onErr('No token');return;}window.Plaid.create({token:d.link_token,onSuccess:function(pt,meta){_edgeFn('plaid-link',{action:'exchange_token',public_token:pt,institution_name:meta.institution?meta.institution.name:'Bank',accounts:meta.accounts}).then(function(r){if(r.success)onOk();else onErr(JSON.stringify(r));});},onExit:function(e){if(e)onErr(e.display_message||e.error_message||'closed');}}).open();}).catch(function(e){onErr(e.message);});}
 function AccountsPanel(p){
   var accounts=p.accounts||[],syncing=p.syncing,lastSync=p.lastSync,onSync=p.onSync,onConnect=p.onConnect,setupRequired=p.setupRequired,onSetupKey=p.onSetupKey,cardNicknames=p.cardNicknames||{};
@@ -343,26 +344,42 @@ function Badge({ status }) {
   const labels = { planned: "Planned", active: "Active", complete: "Complete" };
   return /* @__PURE__ */ React.createElement("span", { className: `text-xs px-2 py-0.5 rounded-full border font-medium ${STATUS_COLORS[status]}` }, labels[status]);
 }
-function DashboardTab({ actuals2026, budgets, categories, transactions }) {
+function DashboardTab({ actuals2026, budgets, categories, transactions, computedActuals }) {
   const [selMonth, setSelMonth] = useState(CURRENT_MONTH);
   const [editBudget, setEditBudget] = useState(false);
   const [localBudgets, setLocalBudgets] = useState(budgets);
   const [expandedKey, setExpandedKey] = useState(null);
+  // Blend: use computedActuals for variable spending when available
+  const blendedActuals = useMemo(() => {
+    var result = {};
+    for (var cat of Object.keys(actuals2026)) {
+      result[cat] = {};
+      for (var sub of Object.keys(actuals2026[cat])) {
+        result[cat][sub] = actuals2026[cat][sub].map(function(hardcoded, month) {
+          var computed = (computedActuals[cat] && computedActuals[cat][sub]) ? computedActuals[cat][sub][month] : 0;
+          // For variable spending, prefer computed (real bank data) if we have any for this month
+          if (cat === 'Variable Spending' && computed > 0) return computed;
+          return hardcoded;
+        });
+      }
+    }
+    return result;
+  }, [actuals2026, computedActuals]);
   const monthActuals = useMemo(() => {
     const out = {};
-    for (const cat of Object.keys(actuals2026)) {
+    for (const cat of Object.keys(blendedActuals)) {
       out[cat] = {};
-      for (const sub of Object.keys(actuals2026[cat])) {
-        out[cat][sub] = actuals2026[cat][sub][selMonth] || 0;
+      for (const sub of Object.keys(blendedActuals[cat])) {
+        out[cat][sub] = blendedActuals[cat][sub][selMonth] || 0;
       }
     }
     return out;
-  }, [actuals2026, selMonth]);
+  }, [blendedActuals, selMonth]);
   const totals = useMemo(() => ({
-    income: sumCategory(actuals2026, "Income", selMonth),
-    fixed: sumCategory(actuals2026, "Fixed Spending", selMonth),
-    variable: sumCategory(actuals2026, "Variable Spending", selMonth),
-    savings: sumCategory(actuals2026, "Savings", selMonth)
+    income: sumCategory(blendedActuals, "Income", selMonth),
+    fixed: sumCategory(blendedActuals, "Fixed Spending", selMonth),
+    variable: sumCategory(blendedActuals, "Variable Spending", selMonth),
+    savings: sumCategory(blendedActuals, "Savings", selMonth)
   }), [actuals2026, selMonth]);
   const net = totals.income - totals.fixed - totals.variable - totals.savings;
   const budgetTotals = {
@@ -385,7 +402,9 @@ function DashboardTab({ actuals2026, budgets, categories, transactions }) {
     var rowKey = key+"-"+sub;
     var isExpanded = expandedKey === rowKey;
     var rowTxs = transactions ? transactions.filter(function(t) {
-      return new Date(t.date+'T00:00:00').getMonth() === selMonth && t.subCategory === sub;
+      var tMonth = new Date(t.date+'T00:00:00').getMonth();
+      var tYear  = new Date(t.date+'T00:00:00').getFullYear();
+      return tMonth === selMonth && tYear === 2026 && t.subCategory === sub;
     }) : [];
     var hasTxs = rowTxs.length > 0;
     return /* @__PURE__ */ React.createElement("div", { key: sub },
@@ -400,17 +419,23 @@ function DashboardTab({ actuals2026, budgets, categories, transactions }) {
           /* @__PURE__ */ React.createElement("span", { className: "font-semibold "+(actual===0?"text-slate-600":"text-white") }, fmt(actual))
         )
       ),
-      isExpanded && /* @__PURE__ */ React.createElement("div", { className: "bg-slate-900/50 border-t border-slate-700/50 divide-y divide-slate-700/30" },
-        rowTxs.map(function(tx) {
-          return /* @__PURE__ */ React.createElement("div", { key: tx.id, className: "px-8 py-2 flex justify-between items-center text-xs" },
-            /* @__PURE__ */ React.createElement("div", null,
-              /* @__PURE__ */ React.createElement("span", { className: "text-slate-300 font-medium" }, tx.description),
-              /* @__PURE__ */ React.createElement("span", { className: "text-slate-500 ml-2" }, tx.date),
-              tx.notes && /* @__PURE__ */ React.createElement("span", { className: "text-slate-600 ml-2" }, tx.notes)
-            ),
-            /* @__PURE__ */ React.createElement("span", { className: "font-mono text-slate-300" }, fmt(tx.amount))
-          );
-        })
+      isExpanded && /* @__PURE__ */ React.createElement("div", { className: "bg-slate-900/50 border-t border-slate-700/50" },
+        /* @__PURE__ */ React.createElement("div", { className: "divide-y divide-slate-700/30" },
+          rowTxs.map(function(tx) {
+            return /* @__PURE__ */ React.createElement("div", { key: tx.id, className: "px-8 py-2 flex justify-between items-center text-xs" },
+              /* @__PURE__ */ React.createElement("div", null,
+                /* @__PURE__ */ React.createElement("span", { className: "text-slate-300 font-medium" }, tx.description),
+                /* @__PURE__ */ React.createElement("span", { className: "text-slate-500 ml-2" }, tx.date),
+                tx.notes && /* @__PURE__ */ React.createElement("span", { className: "text-slate-600 ml-2" }, tx.notes)
+              ),
+              /* @__PURE__ */ React.createElement("span", { className: "font-mono text-slate-300" }, fmt(tx.amount))
+            );
+          })
+        ),
+        /* @__PURE__ */ React.createElement("div", { className: "px-8 py-2 flex justify-between text-xs border-t border-slate-700/30" },
+          /* @__PURE__ */ React.createElement("span", { className: "text-slate-500" }, rowTxs.length+" bank transaction"+(rowTxs.length!==1?"s":"")),
+          /* @__PURE__ */ React.createElement("span", { className: "font-mono text-slate-400" }, "Bank total: "+fmt(rowTxs.reduce(function(s,t){return s+t.amount;},0)))
+        )
       )
     );
   })))), isPast && /* @__PURE__ */ React.createElement("div", { className: "bg-slate-800 border border-slate-700 rounded-xl p-4" }, /* @__PURE__ */ React.createElement("h3", { className: "font-semibold text-white mb-3" }, "Month Summary"), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 md:grid-cols-4 gap-4 text-sm" }, [
@@ -427,7 +452,7 @@ function TransactionsTab({ transactions, setTransactions, categories, projects }
   const [showAdd, setShowAdd] = useState(false);
   const [editId, setEditId] = useState(null);
   const [plaidMsg, setPlaidMsg] = useState("");
-  const blank = { date: (/* @__PURE__ */ new Date()).toISOString().split("T")[0], description: "", amount: "", category: "Variable Spending", subCategory: "Groceries", notes: "", isKnauf: false, projectId: null, splits: [] };
+  const blank = { date: (/* @__PURE__ */ new Date()).toISOString().split("T")[0], description: "", amount: "", category: "Variable Spending", subCategory: "Groceries", notes: "", isKnauf: false, projectId: null, splits: [], saveRule: false };
   const [form, setForm] = useState(blank);
   const filtered = useMemo(() => transactions.filter((t) => {
     const m = filterMonth === "All" || new Date(t.date).getMonth() === +filterMonth;
@@ -442,6 +467,11 @@ function TransactionsTab({ transactions, setTransactions, categories, projects }
       var st = form.splits.reduce(function(s,sp){return s+(parseFloat(sp.amount)||0);},0);
       if (Math.abs(st - parseFloat(form.amount)) > 0.01) return;
     }
+    // Save categorization rule if requested
+    if (form.saveRule && form.description && editId !== null) {
+      var pattern = form.description.split(' ').slice(0,3).join(' ');
+      _sbInsert('categorization_rules', {description_pattern: pattern, category: form.category, sub_category: form.subCategory});
+    }
     const tx = { ...form, amount: parseFloat(form.amount) };
     if (editId !== null) {
       setTransactions((ts) => ts.map((t) => String(t.id) === String(editId) ? { ...tx, id: t.id } : t));
@@ -453,7 +483,7 @@ function TransactionsTab({ transactions, setTransactions, categories, projects }
     setShowAdd(false);
   }
   function startEdit(t) {
-    setForm({ ...t, amount: String(t.amount), splits: t.splits || [] });
+    setForm({ ...t, amount: String(t.amount), splits: t.splits || [], saveRule: false, origCat: t.category, origSub: t.subCategory });
     setEditId(t.id);
     setShowAdd(true);
   }
@@ -539,10 +569,14 @@ function TransactionsTab({ transactions, setTransactions, categories, projects }
       options: projects.map((p) => ({ value: p.id, label: p.name })),
       className: "ml-1"
     }
-  )))), /* @__PURE__ */ React.createElement("div", { className: "col-span-full mt-2" },
+  )))), /* @__PURE__ */ React.createElement("div", { className: "col-span-full mt-2 space-y-2" },
           /* @__PURE__ */ React.createElement("label", { className: "flex items-center gap-2 cursor-pointer" },
             /* @__PURE__ */ React.createElement("input", { type: "checkbox", checked: form.splits && form.splits.length > 0, onChange: function(e) { setForm({...form, splits: e.target.checked ? [{category:form.category,subCategory:form.subCategory,amount:form.amount||''}] : []}); }, className: "w-4 h-4 accent-purple-500" }),
             /* @__PURE__ */ React.createElement("span", { className: "text-sm text-slate-300 font-medium" }, "Split into multiple categories")
+          ),
+          editId !== null && (form.category !== form.origCat || form.subCategory !== form.origSub) && /* @__PURE__ */ React.createElement("label", { className: "flex items-center gap-2 cursor-pointer" },
+            /* @__PURE__ */ React.createElement("input", { type: "checkbox", checked: !!form.saveRule, onChange: function(e) { setForm({...form, saveRule: e.target.checked}); }, className: "w-4 h-4 accent-emerald-500" }),
+            /* @__PURE__ */ React.createElement("span", { className: "text-sm text-emerald-300" }, "Remember this category for future “" + form.description.split(' ').slice(0,3).join(' ') + "…” transactions")
           )
         ),
         form.splits && form.splits.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "col-span-full bg-slate-700/30 rounded-xl p-3 space-y-2" },
@@ -716,6 +750,17 @@ function BudgetApp() {
   function handleConnect(){if(!window.Plaid){setPlaidError('Plaid not loaded');return;}_openPlaid(function(){doSync();loadAccounts();},function(e){setPlaidError(String(e));});}
   function handleSetupKey(k){localStorage.setItem('sb_anon_key',k);setSetupRequired(false);}
   React.useEffect(function(){if(!setupRequired){loadAccounts();loadTransactions();}}, [setupRequired]);
+  var computedActuals = React.useMemo(function() {
+    var result = {};
+    transactions.forEach(function(t) {
+      var month = new Date(t.date+'T00:00:00').getMonth();
+      if (month < 0 || month > 11) return;
+      if (!result[t.category]) result[t.category] = {};
+      if (!result[t.category][t.subCategory]) result[t.category][t.subCategory] = new Array(12).fill(0);
+      result[t.category][t.subCategory][month] += t.amount;
+    });
+    return result;
+  }, [transactions]);
 
   const [tab, setTab] = useState("dashboard");
   const [transactions, setTransactions] = useState([]);
@@ -730,8 +775,8 @@ function BudgetApp() {
           subCategory:t.sub_category||'Home Supplies',notes:t.notes||'',
           isKnauf:t.is_knauf||false,projectId:t.project_id||null,splits:[]};
       });
-      setTransactions(function(curr) {
-        var localOnly = curr.filter(function(t){ return typeof t.id === 'number'; });
+      setTransactions(function(curr){
+        var localOnly=curr.filter(function(t){return typeof t.id==='number';});
         return rows.concat(localOnly);
       });
     }).catch(function(){});
@@ -769,7 +814,7 @@ function BudgetApp() {
   }))), /* @__PURE__ */ React.createElement("main", { className: "max-w-6xl mx-auto px-4 py-6" }, tab === "dashboard" && React.createElement(React.Fragment, null,
         React.createElement(AccountsPanel, {accounts:accounts,syncing:syncing,lastSync:lastSync,onSync:doSync,onConnect:handleConnect,setupRequired:setupRequired,onSetupKey:handleSetupKey,cardNicknames:cardNicknames}),
         plaidError ? React.createElement('div',{className:'bg-red-900/30 border border-red-500/30 rounded-xl px-4 py-3 text-red-400 text-sm mb-4'},plaidError) : null,
-        React.createElement(DashboardTab, {actuals2026:actuals2026,budgets:budgets,categories:categories,transactions:transactions})), tab === "transactions" && /* @__PURE__ */ React.createElement(TransactionsTab, { transactions, setTransactions, categories, projects }), tab === "knauf" && /* @__PURE__ */ React.createElement(KnaufTab, { transactions }), tab === "projects" && /* @__PURE__ */ React.createElement(ProjectsTab, { projects, setProjects, transactions }), tab === "analytics" && /* @__PURE__ */ React.createElement(AnalyticsTab, { actuals2026 }), tab === "settings" && React.createElement(SettingsTab, {categories:categories,setCategories:setCategories,budgets:budgets,setBudgets:setBudgets,cardNicknames:cardNicknames,setCardNicknames:setCardNicknames,accounts:accounts})));
+        React.createElement(DashboardTab, {actuals2026:actuals2026,budgets:budgets,categories:categories,transactions:transactions,computedActuals:computedActuals})), tab === "transactions" && /* @__PURE__ */ React.createElement(TransactionsTab, { transactions, setTransactions, categories, projects }), tab === "knauf" && /* @__PURE__ */ React.createElement(KnaufTab, { transactions }), tab === "projects" && /* @__PURE__ */ React.createElement(ProjectsTab, { projects, setProjects, transactions }), tab === "analytics" && /* @__PURE__ */ React.createElement(AnalyticsTab, { actuals2026 }), tab === "settings" && React.createElement(SettingsTab, {categories:categories,setCategories:setCategories,budgets:budgets,setBudgets:setBudgets,cardNicknames:cardNicknames,setCardNicknames:setCardNicknames,accounts:accounts})));
 }
 function AnalyticsTab({ actuals2026 }) {
   const chartRefs = {
