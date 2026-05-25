@@ -24,18 +24,16 @@ var AreaChart=_R.AreaChart,Area=_R.Area,BarChart=_R.BarChart,Bar=_R.Bar,
     XAxis=_R.XAxis,YAxis=_R.YAxis,CartesianGrid=_R.CartesianGrid,
     Tooltip=_R.Tooltip,Legend=_R.Legend,ResponsiveContainer=_R.ResponsiveContainer,
     LineChart=_R.LineChart,Line=_R.Line,PieChart=_R.PieChart,Pie=_R.Pie,Cell=_R.Cell;
-
-function SvgIcon(props){var paths=props.paths,size=props.size||16,cls=props.className||'';
-  return React.createElement('svg',{width:size,height:size,viewBox:"0 0 24 24",fill:"none",
-    stroke:"currentColor",strokeWidth:"2",strokeLinecap:"round",strokeLinejoin:"round",className:cls},
-    [].concat(paths).map(function(d,i){return React.createElement('path',{key:i,d:d});}));}
-function mkIcon(paths){return function(p){return React.createElement(SvgIcon,Object.assign({},p,{paths:paths}));};}
+function SvgIcon(props){var p=props.paths,s=props.size||16,c=props.className||'';
+  return React.createElement('svg',{width:s,height:s,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:"2",strokeLinecap:"round",strokeLinejoin:"round",className:c},
+    [].concat(p).map(function(d,i){return React.createElement('path',{key:i,d:d});}));}
+function mkIcon(p){return function(q){return React.createElement(SvgIcon,Object.assign({},q,{paths:p}));};}
 var Home=mkIcon(["M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z","M9 22V12h6v10"]);
 var List=mkIcon(["M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"]);
 var Building2=mkIcon(["M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18z","M6 12H4a2 2 0 0 0-2 2v8h4","M18 9h2a2 2 0 0 1 2 2v11h-4","M10 6h4M10 10h4M10 14h4M10 18h4"]);
 var FolderOpen=mkIcon(["M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z","M2 10h20"]);
 var BarChart2=mkIcon(["M18 20V10","M12 20V4","M6 20v-6"]);
-var Settings=mkIcon(["M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z","M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"]);
+var Settings=mkIcon(["M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z","M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l-.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"]);
 var Plus=mkIcon(["M12 5v14","M5 12h14"]);var X=mkIcon(["M18 6L6 18","M6 6l12 12"]);
 var ChevronDown=mkIcon(["M6 9l6 6 6-6"]);var Upload=mkIcon(["M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4","M17 8l-5-5-5 5","M12 3v12"]);
 var Search=mkIcon(["M21 21l-6-6m2-5a7 7 0 1 1-14 0 7 7 0 0 1 14 0"]);
@@ -54,7 +52,6 @@ var AlertTriangle=mkIcon(["M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 
 var Tag=mkIcon(["M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z","M7 7h.01"]);
 var Calendar=mkIcon(["M3 9h18M3 4h18v18H3zM16 2v4M8 2v4"]);
 
-// ─── SUPABASE + PLAID INTEGRATION ─────────────────────────────────────────────
 var SB_URL = 'https://baujqfofkheszyhfcewn.supabase.co';
 var EDGE = SB_URL + '/functions/v1';
 
@@ -67,7 +64,7 @@ function edgeFn(fn, body) {
   return fetch(EDGE + '/' + fn, { method: 'POST', headers: sbHdrs(), body: JSON.stringify(body) }).then(function(r){ return r.json(); });
 }
 function sbFetch(table, qs) {
-  return fetch(SB_URL + '/rest/v1/' + table + '?' + (qs||''), { headers: sbHdrs() }).then(function(r){ return r.json(); });
+  return fetch(SB_URL + '/rest/v1/' + table + '?' + (qs||'select=*'), { headers: sbHdrs() }).then(function(r){ return r.json(); });
 }
 
 function openPlaidLink(onSuccess, onError) {
@@ -92,7 +89,6 @@ function openPlaidLink(onSuccess, onError) {
   }).catch(function(e){ onError(e.message); });
 }
 
-// ─── ACCOUNTS PANEL ───────────────────────────────────────────────────────────
 function AccountsPanel({ accounts, syncing, lastSync, onSync, onConnect, setupRequired, onSetupKey }) {
   var [keyInput, setKeyInput] = React.useState('');
 
@@ -100,7 +96,7 @@ function AccountsPanel({ accounts, syncing, lastSync, onSync, onConnect, setupRe
     return React.createElement('div', { className: 'bg-slate-800 border border-sky-500/30 rounded-xl p-5 mb-4' },
       React.createElement('h3', { className: 'font-bold text-white mb-1' }, 'Connect to Supabase'),
       React.createElement('p', { className: 'text-slate-400 text-sm mb-3' },
-        'Enter your Supabase Publishable key to enable bank connections and data sync. Find it in Supabase → Settings → API Keys.'
+        'Enter your Supabase Publishable key to enable bank connections and sync. Find it in Supabase → Settings → API Keys.'
       ),
       React.createElement('div', { className: 'flex gap-2' },
         React.createElement('input', {
@@ -122,50 +118,41 @@ function AccountsPanel({ accounts, syncing, lastSync, onSync, onConnect, setupRe
   var credit   = accounts.filter(function(a){ return a.type === 'credit'; });
 
   function AcctCard(a) {
-    var bal = a.current_balance || 0;
+    var bal = parseFloat(a.current_balance) || 0;
     var isCredit = a.type === 'credit';
-    var color = isCredit ? (bal > 0 ? 'text-red-400' : 'text-emerald-400') : 'text-emerald-400';
+    var color = isCredit ? 'text-red-400' : 'text-emerald-400';
     var typeLabel = { checking:'Checking', savings:'Savings', 'credit card':'Credit', credit:'Credit' }[a.subtype||a.type] || a.type;
-    return React.createElement('div', { key: a.plaid_account_id || a.id, className: 'bg-slate-900/50 border border-slate-700 rounded-lg p-3 min-w-40' },
-      React.createElement('p', { className: 'text-slate-400 text-xs mb-0.5' }, a.name + (a.mask ? ' ••' + a.mask : '')),
-      React.createElement('p', { className: 'text-xs text-slate-500 mb-1' }, typeLabel),
+    return React.createElement('div', { key: a.plaid_account_id || a.id, className: 'bg-slate-900/50 border border-slate-700 rounded-lg p-3 min-w-44 shrink-0' },
+      React.createElement('p', { className: 'text-slate-400 text-xs mb-0.5 truncate' }, a.name + (a.mask ? ' ··' + a.mask : '')),
+      React.createElement('p', { className: 'text-xs text-slate-500 mb-1 capitalize' }, typeLabel),
       React.createElement('p', { className: 'text-lg font-bold font-mono ' + color },
-        (isCredit && bal > 0 ? '-' : '') + fmt(Math.abs(bal))
+        (isCredit ? '-' : '') + fmt(Math.abs(bal))
       ),
       a.available_balance != null && React.createElement('p', { className: 'text-slate-500 text-xs mt-0.5' },
-        'Avail: ' + fmt(a.available_balance)
+        'Avail: ' + fmt(parseFloat(a.available_balance))
       )
     );
   }
 
   return React.createElement('div', { className: 'bg-slate-800 border border-slate-700 rounded-xl p-4 mb-4' },
-    React.createElement('div', { className: 'flex items-center justify-between mb-3' },
+    React.createElement('div', { className: 'flex items-center justify-between mb-3 flex-wrap gap-2' },
       React.createElement('h3', { className: 'font-semibold text-white' }, 'Connected Accounts'),
       React.createElement('div', { className: 'flex items-center gap-2' },
         lastSync && React.createElement('span', { className: 'text-slate-500 text-xs' }, 'Synced ' + lastSync),
         React.createElement('button', {
-          onClick: onSync,
-          disabled: syncing,
+          onClick: onSync, disabled: syncing,
           className: 'flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 rounded-lg text-xs text-white font-medium transition-colors',
-        },
-          syncing
-            ? React.createElement('span', null, 'Syncing...')
-            : React.createElement(React.Fragment, null,
-                React.createElement(RefreshCw, { size: 12 }),
-                React.createElement('span', null, 'Sync')
-              )
-        ),
+        }, syncing ? 'Syncing...' : React.createElement(React.Fragment, null, React.createElement(RefreshCw, {size:12}), ' Sync')),
         React.createElement('button', {
           onClick: onConnect,
           className: 'flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs text-white font-medium transition-colors',
-        }, React.createElement(Plus, { size: 12 }), React.createElement('span', null, 'Add Bank'))
+        }, React.createElement(Plus, {size:12}), ' Add Bank')
       )
     ),
     accounts.length === 0
-      ? React.createElement('p', { className: 'text-slate-500 text-sm py-4 text-center' },
-          'No accounts connected yet. Click "Add Bank" to link your first account.')
+      ? React.createElement('p', { className: 'text-slate-500 text-sm py-2 text-center' }, 'No accounts connected. Click "Add Bank" to link your bank.')
       : React.createElement('div', { className: 'flex gap-3 overflow-x-auto pb-1' },
-          ...[].concat(checking, savings, credit).map(AcctCard)
+          [].concat(checking, savings, credit).map(AcctCard)
         )
   );
 }
@@ -791,18 +778,18 @@ function BudgetApp() {
     setSyncing(true);
     edgeFn('plaid-sync', { action: 'balances' }).then(function(){
       return edgeFn('plaid-sync', { action: 'sync' });
-    }).then(function(result){
+    }).then(function(){
       loadAccounts();
-      var now = new Date();
-      setLastSync(now.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
+      loadTransactions();
+      setLastSync(new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
       setSyncing(false);
-    }).catch(function(){ setSyncing(false); });
+    }).catch(function(e){ console.error('sync error', e); setSyncing(false); });
   }
 
   function handleConnect() {
-    if (!window.Plaid) { setPlaidError('Plaid not loaded. Check your internet connection.'); return; }
+    if (!window.Plaid) { setPlaidError('Plaid not loaded.'); return; }
     openPlaidLink(
-      function(){ loadAccounts(); doSync(); },
+      function(){ doSync(); },
       function(err){ setPlaidError(String(err)); }
     );
   }
@@ -810,12 +797,12 @@ function BudgetApp() {
   function handleSetupKey(key) {
     localStorage.setItem('sb_anon_key', key);
     setSetupRequired(false);
-    loadAccounts();
   }
 
   React.useEffect(function(){
     if (!setupRequired) {
       loadAccounts();
+      loadTransactions();
       doSync();
     }
   }, [setupRequired]);
@@ -823,6 +810,32 @@ function BudgetApp() {
 
   const [tab, setTab] = useState("dashboard");
   const [transactions, setTransactions] = useState(INIT_TRANSACTIONS);
+
+  function loadTransactions() {
+    if (!sbKey()) return;
+    sbFetch('transactions', 'select=*&order=date.desc&limit=1000').then(function(data) {
+      if (!Array.isArray(data) || data.length === 0) return;
+      var dbTxs = data.map(function(t) {
+        return {
+          id: 'db' + t.id,
+          date: t.date,
+          description: t.description || '',
+          amount: parseFloat(t.amount) || 0,
+          category: t.category || 'Variable Spending',
+          subCategory: t.sub_category || 'Uncategorized',
+          notes: t.notes || '',
+          isKnauf: t.is_knauf || false,
+          projectId: t.project_id || null,
+        };
+      });
+      setTransactions(function(curr) {
+        var localOnly = curr.filter(function(t) {
+          return typeof t.id !== 'string' || !String(t.id).startsWith('db');
+        });
+        return dbTxs.concat(localOnly);
+      });
+    }).catch(function(e) { console.error('loadTransactions error:', e); });
+  }
   const [projects, setProjects] = useState(INIT_PROJECTS);
   const [categories, setCategories] = useState(INIT_CATEGORIES);
   const [budgets, setBudgets] = useState(INIT_BUDGETS);
@@ -855,17 +868,13 @@ function BudgetApp() {
     );
   }))), /* @__PURE__ */ React.createElement("main", { className: "max-w-6xl mx-auto px-4 py-6" }, tab === "dashboard" && React.createElement(React.Fragment, null,
         React.createElement(AccountsPanel, {
-          accounts: accounts,
-          syncing: syncing,
-          lastSync: lastSync,
-          onSync: doSync,
-          onConnect: handleConnect,
-          setupRequired: setupRequired,
-          onSetupKey: handleSetupKey,
+          accounts: accounts, syncing: syncing, lastSync: lastSync,
+          onSync: doSync, onConnect: handleConnect,
+          setupRequired: setupRequired, onSetupKey: handleSetupKey,
         }),
-        plaidError && React.createElement('div', {className:'bg-red-900/30 border border-red-500/30 rounded-xl px-4 py-3 text-red-400 text-sm mb-4'},
+        plaidError && React.createElement('div', {className:'bg-red-900/30 border border-red-500/30 rounded-xl px-4 py-3 text-red-400 text-sm mb-4 flex justify-between'},
           plaidError,
-          React.createElement('button', {onClick:function(){setPlaidError('');}, className:'ml-3 text-red-300 hover:text-white'}, '×')
+          React.createElement('button', {onClick:function(){setPlaidError('');}, className:'text-red-300 hover:text-white'}, '×')
         ),
         React.createElement(DashboardTab, { actuals2026: actuals2026, budgets: budgets, categories: categories })
       ), tab === "transactions" && /* @__PURE__ */ React.createElement(TransactionsTab, { transactions, setTransactions, categories, projects }), tab === "knauf" && /* @__PURE__ */ React.createElement(KnaufTab, { transactions }), tab === "projects" && /* @__PURE__ */ React.createElement(ProjectsTab, { projects, setProjects, transactions }), tab === "analytics" && /* @__PURE__ */ React.createElement(AnalyticsTab, { actuals2026 }), tab === "settings" && /* @__PURE__ */ React.createElement(SettingsTab, { categories, setCategories, budgets, setBudgets })));
