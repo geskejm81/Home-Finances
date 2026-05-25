@@ -32,13 +32,14 @@ function _edgeFn(fn,body){return fetch(EDGE+'/'+fn,{method:'POST',headers:_sbHdr
 function _sbFetch(table,qs){return fetch(SB_URL+'/rest/v1/'+table+'?'+(qs||'select=*'),{headers:_sbHdrs()}).then(function(r){return r.json();});}
 function _openPlaid(onOk,onErr){_edgeFn('plaid-link',{action:'create_link_token'}).then(function(d){if(!d.link_token){onErr('No token');return;}window.Plaid.create({token:d.link_token,onSuccess:function(pt,meta){_edgeFn('plaid-link',{action:'exchange_token',public_token:pt,institution_name:meta.institution?meta.institution.name:'Bank',accounts:meta.accounts}).then(function(r){if(r.success)onOk();else onErr(JSON.stringify(r));});},onExit:function(e){if(e)onErr(e.display_message||e.error_message||'closed');}}).open();}).catch(function(e){onErr(e.message);});}
 function AccountsPanel(p){
-  var accounts=p.accounts||[],syncing=p.syncing,lastSync=p.lastSync,onSync=p.onSync,onConnect=p.onConnect,setupRequired=p.setupRequired,onSetupKey=p.onSetupKey;
+  var accounts=p.accounts||[],syncing=p.syncing,lastSync=p.lastSync,onSync=p.onSync,onConnect=p.onConnect,setupRequired=p.setupRequired,onSetupKey=p.onSetupKey,cardNicknames=p.cardNicknames||{};
   var ks=React.useState(''),keyInput=ks[0],setKeyInput=ks[1];
   if(setupRequired){return React.createElement('div',{className:'bg-slate-800 border border-sky-500/30 rounded-xl p-5 mb-4'},React.createElement('h3',{className:'font-bold text-white mb-1'},'Connect to Supabase'),React.createElement('p',{className:'text-slate-400 text-sm mb-3'},'Enter your Supabase Publishable key from Supabase Settings / API Keys.'),React.createElement('div',{className:'flex gap-2'},React.createElement('input',{value:keyInput,onChange:function(e){setKeyInput(e.target.value);},placeholder:'sb_publishable_...',className:'flex-1 bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-sky-500'}),React.createElement('button',{onClick:function(){if(keyInput.trim())onSetupKey(keyInput.trim());},className:'px-4 py-2 bg-sky-600 hover:bg-sky-500 rounded-lg text-white text-sm font-medium'},'Save & Connect')));}
   var checking=accounts.filter(function(a){return a.subtype==='checking';});
   var savings=accounts.filter(function(a){return a.subtype==='savings';});
   var credit=accounts.filter(function(a){return a.type==='credit';});
-  function Card(a){var bal=parseFloat(a.current_balance)||0,isC=a.type==='credit';return React.createElement('div',{key:a.plaid_account_id||a.id,className:'bg-slate-900/50 border border-slate-700 rounded-lg p-3 min-w-44 shrink-0'},React.createElement('p',{className:'text-slate-400 text-xs mb-0.5 truncate'},a.name+(a.mask?' ··'+a.mask:'')),React.createElement('p',{className:'text-xs text-slate-500 mb-1 capitalize'},a.subtype||a.type),React.createElement('p',{className:'text-lg font-bold font-mono '+(isC?'text-red-400':'text-emerald-400')},(isC?'-':'')+fmt(Math.abs(bal))),a.available_balance!=null?React.createElement('p',{className:'text-slate-500 text-xs mt-0.5'},'Avail: '+fmt(parseFloat(a.available_balance)||0)):null);}
+  function getName(a){var n=cardNicknames[a.mask];return (n?n:a.name)+(a.mask?' ··'+a.mask:'');}
+  function Card(a){var bal=parseFloat(a.current_balance)||0,isC=a.type==='credit';return React.createElement('div',{key:a.plaid_account_id||a.id,className:'bg-slate-900/50 border border-slate-700 rounded-lg p-3 min-w-44 shrink-0'},React.createElement('p',{className:'text-slate-400 text-xs mb-0.5 truncate'},getName(a)),React.createElement('p',{className:'text-xs text-slate-500 mb-1 capitalize'},a.subtype||a.type),React.createElement('p',{className:'text-lg font-bold font-mono '+(isC?'text-red-400':'text-emerald-400')},(isC?'-':'')+fmt(Math.abs(bal))),a.available_balance!=null?React.createElement('p',{className:'text-slate-500 text-xs mt-0.5'},'Avail: '+fmt(parseFloat(a.available_balance)||0)):null);}
   return React.createElement('div',{className:'bg-slate-800 border border-slate-700 rounded-xl p-4 mb-4'},React.createElement('div',{className:'flex items-center justify-between mb-3 flex-wrap gap-2'},React.createElement('h3',{className:'font-semibold text-white'},'Connected Accounts'),React.createElement('div',{className:'flex items-center gap-2'},lastSync?React.createElement('span',{className:'text-slate-500 text-xs'},'Synced '+lastSync):null,React.createElement('button',{onClick:onSync,disabled:syncing,className:'px-3 py-1.5 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 rounded-lg text-xs text-white font-medium'},syncing?'Syncing...':'Sync'),React.createElement('button',{onClick:onConnect,className:'px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs text-white font-medium'},'+ Add Bank'))),accounts.length===0?React.createElement('p',{className:'text-slate-500 text-sm py-2 text-center'},'No accounts connected.'):React.createElement('div',{className:'flex gap-3 overflow-x-auto pb-1'},[].concat(checking,savings,credit).map(Card)));
 }
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -386,19 +387,30 @@ function DashboardTab({ actuals2026, budgets, categories, transactions }) {
     var rowTxs = transactions ? transactions.filter(function(t) {
       return new Date(t.date+'T00:00:00').getMonth() === selMonth && t.subCategory === sub;
     }) : [];
+    var hasTxs = rowTxs.length > 0;
     return /* @__PURE__ */ React.createElement("div", { key: sub },
-      /* @__PURE__ */ React.createElement("div", { className: "px-4 py-2.5 flex items-center justify-between transition-colors "+(actual>0?"cursor-pointer hover:bg-slate-700/40":""), onClick: function(){ if(actual>0) setExpandedKey(isExpanded?null:rowKey); } },
-        /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-3" }, isPast && /* @__PURE__ */ React.createElement(StatusDot, { color: indicator }), /* @__PURE__ */ React.createElement("span", { className: "text-sm text-slate-300" }, sub), actual>0 && /* @__PURE__ */ React.createElement("span", { className: "text-slate-600 text-xs" }, isExpanded?"▲":"▼")),
-        /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-6 text-sm font-mono" }, isPast && /* @__PURE__ */ React.createElement("span", { className: "text-slate-400 text-xs" }, "Budget: ", fmt(budget)), /* @__PURE__ */ React.createElement("span", { className: "font-semibold "+(actual===0?"text-slate-600":"text-white") }, fmt(actual)))
+      /* @__PURE__ */ React.createElement("div", { className: "px-4 py-2.5 flex items-center justify-between transition-colors "+(hasTxs?"cursor-pointer hover:bg-slate-700/40":"hover:bg-slate-700/20"), onClick: function(){ if(hasTxs) setExpandedKey(isExpanded?null:rowKey); } },
+        /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-3" },
+          isPast && /* @__PURE__ */ React.createElement(StatusDot, { color: indicator }),
+          /* @__PURE__ */ React.createElement("span", { className: "text-sm text-slate-300" }, sub),
+          hasTxs && /* @__PURE__ */ React.createElement("span", { className: "text-slate-500 text-xs" }, isExpanded?"▲":"▼")
+        ),
+        /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-6 text-sm font-mono" },
+          isPast && /* @__PURE__ */ React.createElement("span", { className: "text-slate-400 text-xs" }, "Budget: ", fmt(budget)),
+          /* @__PURE__ */ React.createElement("span", { className: "font-semibold "+(actual===0?"text-slate-600":"text-white") }, fmt(actual))
+        )
       ),
       isExpanded && /* @__PURE__ */ React.createElement("div", { className: "bg-slate-900/50 border-t border-slate-700/50 divide-y divide-slate-700/30" },
-        rowTxs.length === 0 ? /* @__PURE__ */ React.createElement("div", { className: "px-8 py-2 text-xs text-slate-500" }, "No individual transactions recorded")
-        : rowTxs.map(function(tx) {
-            return /* @__PURE__ */ React.createElement("div", { key: tx.id, className: "px-8 py-2 flex justify-between items-center text-xs" },
-              /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { className: "text-slate-300 font-medium" }, tx.description), /* @__PURE__ */ React.createElement("span", { className: "text-slate-500 ml-2" }, tx.date), tx.notes && /* @__PURE__ */ React.createElement("span", { className: "text-slate-600 ml-2" }, tx.notes)),
-              /* @__PURE__ */ React.createElement("span", { className: "font-mono text-slate-300" }, fmt(tx.amount))
-            );
-          })
+        rowTxs.map(function(tx) {
+          return /* @__PURE__ */ React.createElement("div", { key: tx.id, className: "px-8 py-2 flex justify-between items-center text-xs" },
+            /* @__PURE__ */ React.createElement("div", null,
+              /* @__PURE__ */ React.createElement("span", { className: "text-slate-300 font-medium" }, tx.description),
+              /* @__PURE__ */ React.createElement("span", { className: "text-slate-500 ml-2" }, tx.date),
+              tx.notes && /* @__PURE__ */ React.createElement("span", { className: "text-slate-600 ml-2" }, tx.notes)
+            ),
+            /* @__PURE__ */ React.createElement("span", { className: "font-mono text-slate-300" }, fmt(tx.amount))
+          );
+        })
       )
     );
   })))), isPast && /* @__PURE__ */ React.createElement("div", { className: "bg-slate-800 border border-slate-700 rounded-xl p-4" }, /* @__PURE__ */ React.createElement("h3", { className: "font-semibold text-white mb-3" }, "Month Summary"), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 md:grid-cols-4 gap-4 text-sm" }, [
@@ -698,6 +710,7 @@ function BudgetApp() {
   var ls=React.useState(null),lastSync=ls[0],setLastSync=ls[1];
   var sr=React.useState(!localStorage.getItem('sb_anon_key')),setupRequired=sr[0],setSetupRequired=sr[1];
   var pe=React.useState(''),plaidError=pe[0],setPlaidError=pe[1];
+  var cn=React.useState(function(){try{return JSON.parse(localStorage.getItem('card_nicknames')||'{}');}catch(e){return {};}}),cardNicknames=cn[0],setCardNicknames=cn[1];
   function loadAccounts(){if(!_sbKey())return;_sbFetch('accounts','select=*&order=type').then(function(d){if(Array.isArray(d))setAccounts(d);}).catch(function(){});}
   function doSync(){if(!_sbKey())return;setSyncing(true);_edgeFn('plaid-sync',{action:'balances'}).then(function(){return _edgeFn('plaid-sync',{action:'sync'});}).then(function(){loadAccounts();loadTransactions();setLastSync(new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));setSyncing(false);}).catch(function(){setSyncing(false);});}
   function handleConnect(){if(!window.Plaid){setPlaidError('Plaid not loaded');return;}_openPlaid(function(){doSync();loadAccounts();},function(e){setPlaidError(String(e));});}
@@ -709,7 +722,7 @@ function BudgetApp() {
 
   function loadTransactions() {
     if (!_sbKey()) return;
-    _sbFetch('transactions','select=*&order=date.desc&limit=2000').then(function(data) {
+    _sbFetch('transactions','select=*&order=date.desc&limit=500').then(function(data) {
       if (!Array.isArray(data)) return;
       var rows = data.map(function(t) {
         return {id:'db'+t.id,date:t.date,description:t.description||'',
@@ -717,7 +730,6 @@ function BudgetApp() {
           subCategory:t.sub_category||'Home Supplies',notes:t.notes||'',
           isKnauf:t.is_knauf||false,projectId:t.project_id||null,splits:[]};
       });
-      // Replace all db transactions with fresh Supabase data
       setTransactions(function(curr) {
         var localOnly = curr.filter(function(t){ return typeof t.id === 'number'; });
         return rows.concat(localOnly);
@@ -755,9 +767,9 @@ function BudgetApp() {
       t.label
     );
   }))), /* @__PURE__ */ React.createElement("main", { className: "max-w-6xl mx-auto px-4 py-6" }, tab === "dashboard" && React.createElement(React.Fragment, null,
-        React.createElement(AccountsPanel, {accounts:accounts,syncing:syncing,lastSync:lastSync,onSync:doSync,onConnect:handleConnect,setupRequired:setupRequired,onSetupKey:handleSetupKey}),
+        React.createElement(AccountsPanel, {accounts:accounts,syncing:syncing,lastSync:lastSync,onSync:doSync,onConnect:handleConnect,setupRequired:setupRequired,onSetupKey:handleSetupKey,cardNicknames:cardNicknames}),
         plaidError ? React.createElement('div',{className:'bg-red-900/30 border border-red-500/30 rounded-xl px-4 py-3 text-red-400 text-sm mb-4'},plaidError) : null,
-        React.createElement(DashboardTab, {actuals2026:actuals2026,budgets:budgets,categories:categories,transactions:transactions})), tab === "transactions" && /* @__PURE__ */ React.createElement(TransactionsTab, { transactions, setTransactions, categories, projects }), tab === "knauf" && /* @__PURE__ */ React.createElement(KnaufTab, { transactions }), tab === "projects" && /* @__PURE__ */ React.createElement(ProjectsTab, { projects, setProjects, transactions }), tab === "analytics" && /* @__PURE__ */ React.createElement(AnalyticsTab, { actuals2026 }), tab === "settings" && /* @__PURE__ */ React.createElement(SettingsTab, { categories, setCategories, budgets, setBudgets })));
+        React.createElement(DashboardTab, {actuals2026:actuals2026,budgets:budgets,categories:categories,transactions:transactions})), tab === "transactions" && /* @__PURE__ */ React.createElement(TransactionsTab, { transactions, setTransactions, categories, projects }), tab === "knauf" && /* @__PURE__ */ React.createElement(KnaufTab, { transactions }), tab === "projects" && /* @__PURE__ */ React.createElement(ProjectsTab, { projects, setProjects, transactions }), tab === "analytics" && /* @__PURE__ */ React.createElement(AnalyticsTab, { actuals2026 }), tab === "settings" && React.createElement(SettingsTab, {categories:categories,setCategories:setCategories,budgets:budgets,setBudgets:setBudgets,cardNicknames:cardNicknames,setCardNicknames:setCardNicknames,accounts:accounts})));
 }
 function AnalyticsTab({ actuals2026 }) {
   const chartRefs = {
