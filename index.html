@@ -7,12 +7,12 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <meta name="apple-mobile-web-app-title" content="Family Budget"/>
   <title>Family Budget</title>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" onerror="document.body.innerHTML='<p style=color:red;padding:20px>FAILED: React CDN</p>'"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" onerror="document.body.innerHTML='<p style=color:red;padding:20px>FAILED: ReactDOM CDN</p>'"></script>
+  <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js" onerror="console.warn('Recharts CDN failed - charts may not work')"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js" onerror="console.warn('ChartJS CDN failed')"></script>
+  <script src="https://cdn.tailwindcss.com" onerror="console.warn('Tailwind CDN failed')"></script>
+  <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js" onerror="console.warn('Plaid CDN failed')"></script>
   <script>
     window.onerror = function(msg, src, line, col, err) {
       document.getElementById('root').innerHTML =
