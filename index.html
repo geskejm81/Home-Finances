@@ -344,42 +344,26 @@ function Badge({ status }) {
   const labels = { planned: "Planned", active: "Active", complete: "Complete" };
   return /* @__PURE__ */ React.createElement("span", { className: `text-xs px-2 py-0.5 rounded-full border font-medium ${STATUS_COLORS[status]}` }, labels[status]);
 }
-function DashboardTab({ actuals2026, budgets, categories, transactions, computedActuals }) {
+function DashboardTab({ actuals2026, budgets, categories, transactions }) {
   const [selMonth, setSelMonth] = useState(CURRENT_MONTH);
   const [editBudget, setEditBudget] = useState(false);
   const [localBudgets, setLocalBudgets] = useState(budgets);
   const [expandedKey, setExpandedKey] = useState(null);
-  // Blend: use computedActuals for variable spending when available
-  const blendedActuals = useMemo(() => {
-    var result = {};
-    for (var cat of Object.keys(actuals2026)) {
-      result[cat] = {};
-      for (var sub of Object.keys(actuals2026[cat])) {
-        result[cat][sub] = actuals2026[cat][sub].map(function(hardcoded, month) {
-          var computed = (computedActuals[cat] && computedActuals[cat][sub]) ? computedActuals[cat][sub][month] : 0;
-          // For variable spending, prefer computed (real bank data) if we have any for this month
-          if (cat === 'Variable Spending' && computed > 0) return computed;
-          return hardcoded;
-        });
-      }
-    }
-    return result;
-  }, [actuals2026, computedActuals]);
   const monthActuals = useMemo(() => {
     const out = {};
-    for (const cat of Object.keys(blendedActuals)) {
+    for (const cat of Object.keys(actuals2026)) {
       out[cat] = {};
-      for (const sub of Object.keys(blendedActuals[cat])) {
-        out[cat][sub] = blendedActuals[cat][sub][selMonth] || 0;
+      for (const sub of Object.keys(actuals2026[cat])) {
+        out[cat][sub] = actuals2026[cat][sub][selMonth] || 0;
       }
     }
     return out;
-  }, [blendedActuals, selMonth]);
+  }, [actuals2026, selMonth]);
   const totals = useMemo(() => ({
-    income: sumCategory(blendedActuals, "Income", selMonth),
-    fixed: sumCategory(blendedActuals, "Fixed Spending", selMonth),
-    variable: sumCategory(blendedActuals, "Variable Spending", selMonth),
-    savings: sumCategory(blendedActuals, "Savings", selMonth)
+    income: sumCategory(actuals2026, "Income", selMonth),
+    fixed: sumCategory(actuals2026, "Fixed Spending", selMonth),
+    variable: sumCategory(actuals2026, "Variable Spending", selMonth),
+    savings: sumCategory(actuals2026, "Savings", selMonth)
   }), [actuals2026, selMonth]);
   const net = totals.income - totals.fixed - totals.variable - totals.savings;
   const budgetTotals = {
@@ -400,41 +384,28 @@ function DashboardTab({ actuals2026, budgets, categories, transactions, computed
     const indicator = isPast ? getIndicator(actual, budget, isIncome) : null;
     if (!isPast && actual === 0 && budget === 0) return null;
     var rowKey = key+"-"+sub;
-    var isExpanded = expandedKey === rowKey;
+    var isExp = expandedKey === rowKey;
     var rowTxs = transactions ? transactions.filter(function(t) {
-      var tMonth = new Date(t.date+'T00:00:00').getMonth();
-      var tYear  = new Date(t.date+'T00:00:00').getFullYear();
-      return tMonth === selMonth && tYear === 2026 && t.subCategory === sub;
+      return new Date(t.date+'T00:00:00').getMonth() === selMonth &&
+             new Date(t.date+'T00:00:00').getFullYear() === 2026 &&
+             t.subCategory === sub;
     }) : [];
     var hasTxs = rowTxs.length > 0;
     return /* @__PURE__ */ React.createElement("div", { key: sub },
-      /* @__PURE__ */ React.createElement("div", { className: "px-4 py-2.5 flex items-center justify-between transition-colors "+(hasTxs?"cursor-pointer hover:bg-slate-700/40":"hover:bg-slate-700/20"), onClick: function(){ if(hasTxs) setExpandedKey(isExpanded?null:rowKey); } },
-        /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-3" },
-          isPast && /* @__PURE__ */ React.createElement(StatusDot, { color: indicator }),
-          /* @__PURE__ */ React.createElement("span", { className: "text-sm text-slate-300" }, sub),
-          hasTxs && /* @__PURE__ */ React.createElement("span", { className: "text-slate-500 text-xs" }, isExpanded?"▲":"▼")
-        ),
-        /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-6 text-sm font-mono" },
-          isPast && /* @__PURE__ */ React.createElement("span", { className: "text-slate-400 text-xs" }, "Budget: ", fmt(budget)),
-          /* @__PURE__ */ React.createElement("span", { className: "font-semibold "+(actual===0?"text-slate-600":"text-white") }, fmt(actual))
-        )
+      /* @__PURE__ */ React.createElement("div", { className: "px-4 py-2.5 flex items-center justify-between transition-colors "+(hasTxs?"cursor-pointer hover:bg-slate-700/40":"hover:bg-slate-700/20"), onClick: function(){ if(hasTxs) setExpandedKey(isExp?null:rowKey); } },
+        /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-3" }, isPast && /* @__PURE__ */ React.createElement(StatusDot, { color: indicator }), /* @__PURE__ */ React.createElement("span", { className: "text-sm text-slate-300" }, sub), hasTxs && /* @__PURE__ */ React.createElement("span", { className: "text-slate-500 text-xs" }, isExp?"▲":"▼")),
+        /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-6 text-sm font-mono" }, isPast && /* @__PURE__ */ React.createElement("span", { className: "text-slate-400 text-xs" }, "Budget: ", fmt(budget)), /* @__PURE__ */ React.createElement("span", { className: "font-semibold "+(actual===0?"text-slate-600":"text-white") }, fmt(actual)))
       ),
-      isExpanded && /* @__PURE__ */ React.createElement("div", { className: "bg-slate-900/50 border-t border-slate-700/50" },
-        /* @__PURE__ */ React.createElement("div", { className: "divide-y divide-slate-700/30" },
-          rowTxs.map(function(tx) {
-            return /* @__PURE__ */ React.createElement("div", { key: tx.id, className: "px-8 py-2 flex justify-between items-center text-xs" },
-              /* @__PURE__ */ React.createElement("div", null,
-                /* @__PURE__ */ React.createElement("span", { className: "text-slate-300 font-medium" }, tx.description),
-                /* @__PURE__ */ React.createElement("span", { className: "text-slate-500 ml-2" }, tx.date),
-                tx.notes && /* @__PURE__ */ React.createElement("span", { className: "text-slate-600 ml-2" }, tx.notes)
-              ),
-              /* @__PURE__ */ React.createElement("span", { className: "font-mono text-slate-300" }, fmt(tx.amount))
-            );
-          })
-        ),
-        /* @__PURE__ */ React.createElement("div", { className: "px-8 py-2 flex justify-between text-xs border-t border-slate-700/30" },
-          /* @__PURE__ */ React.createElement("span", { className: "text-slate-500" }, rowTxs.length+" bank transaction"+(rowTxs.length!==1?"s":"")),
-          /* @__PURE__ */ React.createElement("span", { className: "font-mono text-slate-400" }, "Bank total: "+fmt(rowTxs.reduce(function(s,t){return s+t.amount;},0)))
+      isExp && /* @__PURE__ */ React.createElement("div", { className: "bg-slate-900/50 border-t border-slate-700/50 divide-y divide-slate-700/30" },
+        rowTxs.map(function(tx) {
+          return /* @__PURE__ */ React.createElement("div", { key: tx.id, className: "px-8 py-2 flex justify-between items-center text-xs" },
+            /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { className: "text-slate-300 font-medium" }, tx.description), /* @__PURE__ */ React.createElement("span", { className: "text-slate-500 ml-2" }, tx.date), tx.notes && /* @__PURE__ */ React.createElement("span", { className: "text-slate-600 ml-2" }, tx.notes)),
+            /* @__PURE__ */ React.createElement("span", { className: "font-mono text-slate-300" }, fmt(tx.amount))
+          );
+        }),
+        /* @__PURE__ */ React.createElement("div", { className: "px-8 py-1.5 text-xs text-slate-500 flex justify-between" },
+          /* @__PURE__ */ React.createElement("span", null, rowTxs.length+" bank transaction"+(rowTxs.length!==1?"s":"")),
+          /* @__PURE__ */ React.createElement("span", { className: "font-mono" }, "Bank total: "+fmt(rowTxs.reduce(function(s,t){return s+t.amount;},0)))
         )
       )
     );
@@ -454,12 +425,14 @@ function TransactionsTab({ transactions, setTransactions, categories, projects }
   const [plaidMsg, setPlaidMsg] = useState("");
   const blank = { date: (/* @__PURE__ */ new Date()).toISOString().split("T")[0], description: "", amount: "", category: "Variable Spending", subCategory: "Groceries", notes: "", isKnauf: false, projectId: null, splits: [], saveRule: false };
   const [form, setForm] = useState(blank);
-  const filtered = useMemo(() => transactions.filter((t) => {
+  React.useEffect(function(){ setPage(0); }, [search, filterCat, filterMonth]);
+  const allFiltered = useMemo(() => transactions.filter((t) => {
     const m = filterMonth === "All" || new Date(t.date).getMonth() === +filterMonth;
     const c = filterCat === "All" || t.category === filterCat;
     const s = !search || t.description.toLowerCase().includes(search.toLowerCase()) || t.subCategory.toLowerCase().includes(search.toLowerCase()) || (t.notes || "").toLowerCase().includes(search.toLowerCase());
     return m && c && s;
   }).sort((a, b) => new Date(b.date) - new Date(a.date)), [transactions, filterCat, filterMonth, search]);
+  const filtered = useMemo(() => allFiltered.slice(0, (page + 1) * PAGE_SIZE), [allFiltered, page]);
   const subCats = form.category && categories[form.category] ? categories[form.category] : [];
   function save() {
     if (!form.description || !form.amount) return;
@@ -467,10 +440,9 @@ function TransactionsTab({ transactions, setTransactions, categories, projects }
       var st = form.splits.reduce(function(s,sp){return s+(parseFloat(sp.amount)||0);},0);
       if (Math.abs(st - parseFloat(form.amount)) > 0.01) return;
     }
-    // Save categorization rule if requested
     if (form.saveRule && form.description && editId !== null) {
-      var pattern = form.description.split(' ').slice(0,3).join(' ');
-      _sbInsert('categorization_rules', {description_pattern: pattern, category: form.category, sub_category: form.subCategory});
+      var pat = form.description.split(' ').slice(0,3).join(' ');
+      _sbInsert('categorization_rules', {description_pattern:pat, category:form.category, sub_category:form.subCategory});
     }
     const tx = { ...form, amount: parseFloat(form.amount) };
     if (editId !== null) {
@@ -576,7 +548,7 @@ function TransactionsTab({ transactions, setTransactions, categories, projects }
           ),
           editId !== null && (form.category !== form.origCat || form.subCategory !== form.origSub) && /* @__PURE__ */ React.createElement("label", { className: "flex items-center gap-2 cursor-pointer" },
             /* @__PURE__ */ React.createElement("input", { type: "checkbox", checked: !!form.saveRule, onChange: function(e) { setForm({...form, saveRule: e.target.checked}); }, className: "w-4 h-4 accent-emerald-500" }),
-            /* @__PURE__ */ React.createElement("span", { className: "text-sm text-emerald-300" }, "Remember this category for future “" + form.description.split(' ').slice(0,3).join(' ') + "…” transactions")
+            /* @__PURE__ */ React.createElement("span", { className: "text-sm text-emerald-300" }, "Remember this for future “" + form.description.split(' ').slice(0,3).join(' ') + "…” transactions")
           )
         ),
         form.splits && form.splits.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "col-span-full bg-slate-700/30 rounded-xl p-3 space-y-2" },
@@ -600,10 +572,9 @@ function TransactionsTab({ transactions, setTransactions, categories, projects }
     setForm(blank);
   }, className: "px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm text-white transition-colors" }, /* @__PURE__ */ React.createElement(X, { size: 14, className: "inline mr-1" }), "Cancel"), /* @__PURE__ */ React.createElement("button", { onClick: save, className: "px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-sm text-white font-medium transition-colors" }, /* @__PURE__ */ React.createElement(Save, { size: 14, className: "inline mr-1" }), "Save"))), /* @__PURE__ */ React.createElement("div", { className: "bg-slate-800 border border-slate-700 rounded-xl overflow-hidden" }, /* @__PURE__ */ React.createElement("div", { className: "overflow-x-auto" }, /* @__PURE__ */ React.createElement("table", { className: "w-full text-sm" }, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", { className: "border-b border-slate-700 bg-slate-800/80" }, /* @__PURE__ */ React.createElement("th", { className: "text-left px-4 py-3 text-xs text-slate-400 font-medium uppercase tracking-wider" }, "Date"), /* @__PURE__ */ React.createElement("th", { className: "text-left px-4 py-3 text-xs text-slate-400 font-medium uppercase tracking-wider" }, "Description"), /* @__PURE__ */ React.createElement("th", { className: "text-left px-4 py-3 text-xs text-slate-400 font-medium uppercase tracking-wider" }, "Category"), /* @__PURE__ */ React.createElement("th", { className: "text-left px-4 py-3 text-xs text-slate-400 font-medium uppercase tracking-wider" }, "Notes"), /* @__PURE__ */ React.createElement("th", { className: "text-right px-4 py-3 text-xs text-slate-400 font-medium uppercase tracking-wider" }, "Amount"), /* @__PURE__ */ React.createElement("th", { className: "text-center px-3 py-3 text-xs text-slate-400 font-medium uppercase tracking-wider" }, "Knauf"), /* @__PURE__ */ React.createElement("th", { className: "text-center px-3 py-3 text-xs text-slate-400 font-medium uppercase tracking-wider" }, "Project"), /* @__PURE__ */ React.createElement("th", { className: "px-3 py-3" }))), /* @__PURE__ */ React.createElement("tbody", { className: "divide-y divide-slate-700/50" }, filtered.length === 0 && /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("td", { colSpan: 8, className: "text-center py-12 text-slate-500" }, "No transactions found")), filtered.map((t) => {
     const proj = projects.find((p) => p.id === t.projectId);
-    return /* @__PURE__ */ React.createElement("tr", { key: t.id, className: "hover:bg-slate-700/30 transition-colors" }, /* @__PURE__ */ React.createElement("td", { className: "px-4 py-3 text-slate-400 whitespace-nowrap" }, t.date), /* @__PURE__ */ React.createElement("td", { className: "px-4 py-3 text-white font-medium" }, t.description), /* @__PURE__ */ React.createElement("td", { className: "px-4 py-3" },
-              t.splits && t.splits.length > 0
-                ? /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "text-purple-300 text-xs font-medium" }, "Split ("+t.splits.length+")"), t.splits.map(function(sp,i){ return /* @__PURE__ */ React.createElement("div", {key:i, className:"text-slate-400 text-xs"}, sp.subCategory+": "+fmt(parseFloat(sp.amount)||0)); }))
-                : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "text-slate-300" }, t.subCategory), /* @__PURE__ */ React.createElement("div", { className: "text-slate-500 text-xs" }, t.category))), /* @__PURE__ */ React.createElement("td", { className: "px-4 py-3 text-slate-400 text-xs max-w-xs truncate" }, t.notes), /* @__PURE__ */ React.createElement("td", { className: `px-4 py-3 text-right font-mono font-semibold ${t.category === "Income" ? "text-emerald-400" : "text-white"}` }, fmt(t.amount)), /* @__PURE__ */ React.createElement("td", { className: "px-3 py-3 text-center" }, /* @__PURE__ */ React.createElement("button", { onClick: () => toggleKnauf(t.id), className: "text-slate-400 hover:text-sky-400 transition-colors" }, t.isKnauf ? /* @__PURE__ */ React.createElement(CheckSquare, { size: 16, className: "text-sky-400" }) : /* @__PURE__ */ React.createElement(Square, { size: 16 }))), /* @__PURE__ */ React.createElement("td", { className: "px-3 py-3 text-center" }, proj ? /* @__PURE__ */ React.createElement("span", { className: "text-xs px-1.5 py-0.5 bg-purple-500/20 text-purple-300 rounded border border-purple-500/30 whitespace-nowrap" }, proj.name.slice(0, 12), "\u2026") : /* @__PURE__ */ React.createElement("button", { onClick: () => {
+    return /* @__PURE__ */ React.createElement("tr", { key: t.id, className: "hover:bg-slate-700/30 transition-colors" }, /* @__PURE__ */ React.createElement("td", { className: "px-4 py-3 text-slate-400 whitespace-nowrap" }, t.date), /* @__PURE__ */ React.createElement("td", { className: "px-4 py-3 text-white font-medium" }, t.description), /* @__PURE__ */ React.createElement("td", { className: "px-4 py-3" }, t.splits && t.splits.length > 0
+  ? /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "text-purple-300 text-xs font-medium" }, "Split ("+t.splits.length+")"), t.splits.map(function(sp,i){ return /* @__PURE__ */ React.createElement("div", {key:i, className:"text-slate-400 text-xs"}, sp.subCategory+": "+fmt(parseFloat(sp.amount)||0)); }))
+  : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "text-slate-300" }, t.subCategory), /* @__PURE__ */ React.createElement("div", { className: "text-slate-500 text-xs" }, t.category))), /* @__PURE__ */ React.createElement("td", { className: "px-4 py-3 text-slate-400 text-xs max-w-xs truncate" }, t.notes), /* @__PURE__ */ React.createElement("td", { className: `px-4 py-3 text-right font-mono font-semibold ${t.category === "Income" ? "text-emerald-400" : "text-white"}` }, fmt(t.amount)), /* @__PURE__ */ React.createElement("td", { className: "px-3 py-3 text-center" }, /* @__PURE__ */ React.createElement("button", { onClick: () => toggleKnauf(t.id), className: "text-slate-400 hover:text-sky-400 transition-colors" }, t.isKnauf ? /* @__PURE__ */ React.createElement(CheckSquare, { size: 16, className: "text-sky-400" }) : /* @__PURE__ */ React.createElement(Square, { size: 16 }))), /* @__PURE__ */ React.createElement("td", { className: "px-3 py-3 text-center" }, proj ? /* @__PURE__ */ React.createElement("span", { className: "text-xs px-1.5 py-0.5 bg-purple-500/20 text-purple-300 rounded border border-purple-500/30 whitespace-nowrap" }, proj.name.slice(0, 12), "\u2026") : /* @__PURE__ */ React.createElement("button", { onClick: () => {
     }, className: "text-slate-600 hover:text-purple-400 transition-colors" }, /* @__PURE__ */ React.createElement(Tag, { size: 14 }))), /* @__PURE__ */ React.createElement("td", { className: "px-3 py-3" }, /* @__PURE__ */ React.createElement("div", { className: "flex gap-1" }, /* @__PURE__ */ React.createElement("button", { onClick: () => startEdit(t), className: "p-1 text-slate-500 hover:text-sky-400 transition-colors" }, /* @__PURE__ */ React.createElement(Edit2, { size: 13 })), /* @__PURE__ */ React.createElement("button", { onClick: () => del(t.id), className: "p-1 text-slate-500 hover:text-red-400 transition-colors" }, /* @__PURE__ */ React.createElement(Trash2, { size: 13 })))));
   })))), /* @__PURE__ */ React.createElement("div", { className: "px-4 py-3 border-t border-slate-700 flex items-center justify-between text-sm" }, /* @__PURE__ */ React.createElement("span", { className: "text-slate-400" }, filtered.length, " transactions"), /* @__PURE__ */ React.createElement("span", { className: "text-slate-300 font-mono font-semibold" }, "Total: ", fmt(filtered.filter((t) => t.category !== "Income").reduce((s, t) => s + t.amount, 0))))));
 }
@@ -680,7 +651,7 @@ function ProjectsTab({ projects, setProjects, transactions }) {
     return /* @__PURE__ */ React.createElement("div", { key: p.id, className: "bg-slate-800 border border-slate-700 rounded-xl p-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-start justify-between gap-3 mb-3" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-2 mb-1" }, /* @__PURE__ */ React.createElement("h3", { className: "font-semibold text-white" }, p.name), /* @__PURE__ */ React.createElement(Badge, { status: p.status }), /* @__PURE__ */ React.createElement("span", { className: "text-xs text-slate-500" }, p.year)), p.description && /* @__PURE__ */ React.createElement("p", { className: "text-slate-400 text-xs" }, p.description)), /* @__PURE__ */ React.createElement("div", { className: "flex gap-1 shrink-0" }, /* @__PURE__ */ React.createElement("button", { onClick: () => cycleStatus(p.id), className: "px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-xs text-slate-300 transition-colors" }, /* @__PURE__ */ React.createElement(RefreshCw, { size: 11, className: "inline mr-1" }), "Status"), /* @__PURE__ */ React.createElement("button", { onClick: () => del(p.id), className: "p-1 text-slate-500 hover:text-red-400 transition-colors" }, /* @__PURE__ */ React.createElement(Trash2, { size: 14 })))), /* @__PURE__ */ React.createElement("div", { className: "flex gap-6 text-sm mb-3" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-slate-400 text-xs" }, "Budgeted"), /* @__PURE__ */ React.createElement("p", { className: "font-mono font-semibold text-white" }, fmt(p.budgeted))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-slate-400 text-xs" }, "Actual"), /* @__PURE__ */ React.createElement("p", { className: "font-mono font-semibold text-white" }, fmt(p.actual))), linked.length > 0 && /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-slate-400 text-xs" }, "Linked Tx"), /* @__PURE__ */ React.createElement("p", { className: "font-mono font-semibold text-purple-300" }, fmt(linkedTotal)))), p.budgeted > 0 && /* @__PURE__ */ React.createElement("div", { className: "h-1.5 bg-slate-700 rounded-full overflow-hidden" }, /* @__PURE__ */ React.createElement("div", { className: "h-full rounded-full transition-all", style: { width: `${pct}%`, backgroundColor: pct > 100 ? "#ef4444" : pct > 85 ? "#f59e0b" : "#10b981" } })), linked.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "mt-3 pt-3 border-t border-slate-700 space-y-1" }, linked.map((t) => /* @__PURE__ */ React.createElement("div", { key: t.id, className: "flex justify-between text-xs text-slate-400" }, /* @__PURE__ */ React.createElement("span", null, t.date, " \xB7 ", t.description), /* @__PURE__ */ React.createElement("span", { className: "font-mono" }, fmt(t.amount))))));
   }), filtered.length === 0 && /* @__PURE__ */ React.createElement("div", { className: "text-center py-12 text-slate-500" }, "No projects match filters")));
 }
-function SettingsTab({ categories, setCategories, budgets, setBudgets }) {
+function SettingsTab({ categories, setCategories, budgets, setBudgets, cardNicknames, setCardNicknames, accounts }) {
   const [activeSec, setActiveSec] = useState("budgets");
   const [editCat, setEditCat] = useState("Variable Spending");
   const [newSub, setNewSub] = useState("");
@@ -698,14 +669,14 @@ function SettingsTab({ categories, setCategories, budgets, setBudgets }) {
     setSaved(true);
     setTimeout(() => setSaved(false), 2e3);
   };
-  return /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, /* @__PURE__ */ React.createElement("h2", { className: "text-xl font-bold text-white" }, "Settings"), /* @__PURE__ */ React.createElement("div", { className: "flex gap-2 flex-wrap" }, ["budgets", "categories", "plaid"].map((s) => /* @__PURE__ */ React.createElement(
+  return /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, /* @__PURE__ */ React.createElement("h2", { className: "text-xl font-bold text-white" }, "Settings"), /* @__PURE__ */ React.createElement("div", { className: "flex gap-2 flex-wrap" }, ["budgets", "categories", "cards", "plaid"].map((s) => /* @__PURE__ */ React.createElement(
     "button",
     {
       key: s,
       onClick: () => setActiveSec(s),
       className: `px-4 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${activeSec === s ? "bg-sky-600 text-white" : "bg-slate-700 text-slate-300 hover:bg-slate-600"}`
     },
-    s === "plaid" ? "Plaid Config" : s.charAt(0).toUpperCase() + s.slice(1)
+    s === "plaid" ? "Plaid Config" : s === "cards" ? "Card Names" : s.charAt(0).toUpperCase() + s.slice(1)
   ))), activeSec === "budgets" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, /* @__PURE__ */ React.createElement("p", { className: "text-slate-400 text-sm" }, "Set monthly budget targets for each category. These are used for the R/Y/G indicators on the dashboard."), Object.entries(categories).map(([cat, subs]) => /* @__PURE__ */ React.createElement("div", { key: cat, className: "bg-slate-800 border border-slate-700 rounded-xl overflow-hidden" }, /* @__PURE__ */ React.createElement("div", { className: "px-4 py-3 border-b border-slate-700 bg-slate-800/80" }, /* @__PURE__ */ React.createElement("h3", { className: "font-semibold text-white text-sm" }, cat)), /* @__PURE__ */ React.createElement("div", { className: "divide-y divide-slate-700/50" }, subs.map((sub) => /* @__PURE__ */ React.createElement("div", { key: sub, className: "px-4 py-2.5 flex items-center justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-sm text-slate-300" }, sub), /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-2" }, /* @__PURE__ */ React.createElement("span", { className: "text-slate-500 text-xs" }, "$"), /* @__PURE__ */ React.createElement(
     "input",
     {
@@ -723,7 +694,22 @@ function SettingsTab({ categories, setCategories, budgets, setBudgets }) {
       placeholder: `Add subcategory to ${editCat}\u2026`,
       className: "flex-1 bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500"
     }
-  ), /* @__PURE__ */ React.createElement("button", { onClick: addSub, className: "px-3 py-2 bg-sky-600 hover:bg-sky-500 rounded-lg text-white transition-colors" }, /* @__PURE__ */ React.createElement(Plus, { size: 16 }))), /* @__PURE__ */ React.createElement("div", { className: "divide-y divide-slate-700/50 max-h-80 overflow-y-auto" }, (categories[editCat] || []).map((sub) => /* @__PURE__ */ React.createElement("div", { key: sub, className: "px-4 py-2.5 flex items-center justify-between hover:bg-slate-700/30" }, /* @__PURE__ */ React.createElement("span", { className: "text-sm text-slate-300" }, sub), /* @__PURE__ */ React.createElement("button", { onClick: () => removeSub(editCat, sub), className: "text-slate-500 hover:text-red-400 transition-colors" }, /* @__PURE__ */ React.createElement(X, { size: 14 }))))))), activeSec === "plaid" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, /* @__PURE__ */ React.createElement("div", { className: "bg-amber-900/20 border border-amber-500/30 rounded-xl p-4 text-sm text-amber-300" }, /* @__PURE__ */ React.createElement("p", { className: "font-semibold mb-1" }, "\u26A0\uFE0F Security Note"), /* @__PURE__ */ React.createElement("p", null, "Never share your production secret. These values are stored only in your browser session and are cleared when you close the tab. In the deployed version, these will be managed server-side via Supabase environment variables.")), /* @__PURE__ */ React.createElement("div", { className: "bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-4" }, /* @__PURE__ */ React.createElement("h3", { className: "font-semibold text-white" }, "Plaid API Configuration"), [
+  ), /* @__PURE__ */ React.createElement("button", { onClick: addSub, className: "px-3 py-2 bg-sky-600 hover:bg-sky-500 rounded-lg text-white transition-colors" }, /* @__PURE__ */ React.createElement(Plus, { size: 16 }))), /* @__PURE__ */ React.createElement("div", { className: "divide-y divide-slate-700/50 max-h-80 overflow-y-auto" }, (categories[editCat] || []).map((sub) => /* @__PURE__ */ React.createElement("div", { key: sub, className: "px-4 py-2.5 flex items-center justify-between hover:bg-slate-700/30" }, /* @__PURE__ */ React.createElement("span", { className: "text-sm text-slate-300" }, sub), /* @__PURE__ */ React.createElement("button", { onClick: () => removeSub(editCat, sub), className: "text-slate-500 hover:text-red-400 transition-colors" }, /* @__PURE__ */ React.createElement(X, { size: 14 }))))))), activeSec === "cards" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4" },
+        /* @__PURE__ */ React.createElement("p", { className: "text-slate-400 text-sm" }, "Give your accounts friendly names. Updates the dashboard display."),
+        (accounts||[]).length === 0 && /* @__PURE__ */ React.createElement("p", { className: "text-slate-500 text-sm" }, "No accounts connected yet."),
+        /* @__PURE__ */ React.createElement("div", { className: "bg-slate-800 border border-slate-700 rounded-xl divide-y divide-slate-700/50 overflow-hidden" },
+          (accounts||[]).map(function(a) {
+            return /* @__PURE__ */ React.createElement("div", { key: a.plaid_account_id||a.id, className: "px-4 py-3 flex items-center gap-4" },
+              /* @__PURE__ */ React.createElement("div", { className: "w-32 shrink-0" },
+                /* @__PURE__ */ React.createElement("p", { className: "text-xs text-slate-500 capitalize" }, a.subtype||a.type),
+                /* @__PURE__ */ React.createElement("p", { className: "text-sm text-slate-400 font-mono" }, "··"+(a.mask||''))
+              ),
+              /* @__PURE__ */ React.createElement("input", { value:(cardNicknames||{})[a.mask]||'', onChange:function(e){var nn=Object.assign({},cardNicknames||{},{[a.mask]:e.target.value});setCardNicknames(nn);localStorage.setItem('card_nicknames',JSON.stringify(nn));}, placeholder:a.name||'Enter nickname…', className:"flex-1 bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500" })
+            );
+          })
+        )
+      ),
+      activeSec === "plaid" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, /* @__PURE__ */ React.createElement("div", { className: "bg-amber-900/20 border border-amber-500/30 rounded-xl p-4 text-sm text-amber-300" }, /* @__PURE__ */ React.createElement("p", { className: "font-semibold mb-1" }, "\u26A0\uFE0F Security Note"), /* @__PURE__ */ React.createElement("p", null, "Never share your production secret. These values are stored only in your browser session and are cleared when you close the tab. In the deployed version, these will be managed server-side via Supabase environment variables.")), /* @__PURE__ */ React.createElement("div", { className: "bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-4" }, /* @__PURE__ */ React.createElement("h3", { className: "font-semibold text-white" }, "Plaid API Configuration"), [
     { key: "clientId", label: "Client ID", type: "text" },
     { key: "sandboxSecret", label: "Sandbox Secret", type: "password" },
     { key: "productionSecret", label: "Production Secret", type: "password" }
@@ -750,17 +736,6 @@ function BudgetApp() {
   function handleConnect(){if(!window.Plaid){setPlaidError('Plaid not loaded');return;}_openPlaid(function(){doSync();loadAccounts();},function(e){setPlaidError(String(e));});}
   function handleSetupKey(k){localStorage.setItem('sb_anon_key',k);setSetupRequired(false);}
   React.useEffect(function(){if(!setupRequired){loadAccounts();loadTransactions();}}, [setupRequired]);
-  var computedActuals = React.useMemo(function() {
-    var result = {};
-    transactions.forEach(function(t) {
-      var month = new Date(t.date+'T00:00:00').getMonth();
-      if (month < 0 || month > 11) return;
-      if (!result[t.category]) result[t.category] = {};
-      if (!result[t.category][t.subCategory]) result[t.category][t.subCategory] = new Array(12).fill(0);
-      result[t.category][t.subCategory][month] += t.amount;
-    });
-    return result;
-  }, [transactions]);
 
   const [tab, setTab] = useState("dashboard");
   const [transactions, setTransactions] = useState([]);
@@ -776,8 +751,8 @@ function BudgetApp() {
           isKnauf:t.is_knauf||false,projectId:t.project_id||null,splits:[]};
       });
       setTransactions(function(curr){
-        var localOnly=curr.filter(function(t){return typeof t.id==='number';});
-        return rows.concat(localOnly);
+        var local=curr.filter(function(t){return typeof t.id==='number';});
+        return rows.concat(local);
       });
     }).catch(function(){});
   }
@@ -814,7 +789,7 @@ function BudgetApp() {
   }))), /* @__PURE__ */ React.createElement("main", { className: "max-w-6xl mx-auto px-4 py-6" }, tab === "dashboard" && React.createElement(React.Fragment, null,
         React.createElement(AccountsPanel, {accounts:accounts,syncing:syncing,lastSync:lastSync,onSync:doSync,onConnect:handleConnect,setupRequired:setupRequired,onSetupKey:handleSetupKey,cardNicknames:cardNicknames}),
         plaidError ? React.createElement('div',{className:'bg-red-900/30 border border-red-500/30 rounded-xl px-4 py-3 text-red-400 text-sm mb-4'},plaidError) : null,
-        React.createElement(DashboardTab, {actuals2026:actuals2026,budgets:budgets,categories:categories,transactions:transactions,computedActuals:computedActuals})), tab === "transactions" && /* @__PURE__ */ React.createElement(TransactionsTab, { transactions, setTransactions, categories, projects }), tab === "knauf" && /* @__PURE__ */ React.createElement(KnaufTab, { transactions }), tab === "projects" && /* @__PURE__ */ React.createElement(ProjectsTab, { projects, setProjects, transactions }), tab === "analytics" && /* @__PURE__ */ React.createElement(AnalyticsTab, { actuals2026 }), tab === "settings" && React.createElement(SettingsTab, {categories:categories,setCategories:setCategories,budgets:budgets,setBudgets:setBudgets,cardNicknames:cardNicknames,setCardNicknames:setCardNicknames,accounts:accounts})));
+        React.createElement(DashboardTab, {actuals2026:actuals2026,budgets:budgets,categories:categories,transactions:transactions})), tab === "transactions" && /* @__PURE__ */ React.createElement(TransactionsTab, { transactions, setTransactions, categories, projects }), tab === "knauf" && /* @__PURE__ */ React.createElement(KnaufTab, { transactions }), tab === "projects" && /* @__PURE__ */ React.createElement(ProjectsTab, { projects, setProjects, transactions }), tab === "analytics" && /* @__PURE__ */ React.createElement(AnalyticsTab, { actuals2026 }), tab === "settings" && React.createElement(SettingsTab, {categories:categories,setCategories:setCategories,budgets:budgets,setBudgets:setBudgets,cardNicknames:cardNicknames,setCardNicknames:setCardNicknames,accounts:accounts})));
 }
 function AnalyticsTab({ actuals2026 }) {
   const chartRefs = {
