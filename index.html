@@ -546,11 +546,7 @@ function TransactionsTab({ transactions, setTransactions, categories, projects }
             /* @__PURE__ */ React.createElement("input", { type: "checkbox", checked: form.splits && form.splits.length > 0, onChange: function(e) { setForm({...form, splits: e.target.checked ? [{category:form.category,subCategory:form.subCategory,amount:form.amount||''}] : []}); }, className: "w-4 h-4 accent-purple-500" }),
             /* @__PURE__ */ React.createElement("span", { className: "text-sm text-slate-300 font-medium" }, "Split into multiple categories")
           ),
-          editId !== null && (form.category !== form.origCat || form.subCategory !== form.origSub) && /* @__PURE__ */ React.createElement("label", { className: "flex items-center gap-2 cursor-pointer" },
-            /* @__PURE__ */ React.createElement("input", { type: "checkbox", checked: !!form.saveRule, onChange: function(e) { setForm({...form, saveRule: e.target.checked}); }, className: "w-4 h-4 accent-emerald-500" }),
-            /* @__PURE__ */ React.createElement("span", { className: "text-sm text-emerald-300" }, "Remember this for future “" + form.description.split(' ').slice(0,3).join(' ') + "…” transactions")
-          )
-        ),
+                 ),
         form.splits && form.splits.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "col-span-full bg-slate-700/30 rounded-xl p-3 space-y-2" },
           /* @__PURE__ */ React.createElement("p", { className: "text-xs text-slate-400 font-medium uppercase tracking-wider" }, "Split amounts must total ", fmt(parseFloat(form.amount)||0)),
           form.splits.map(function(split, idx) {
