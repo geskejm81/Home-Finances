@@ -31,6 +31,8 @@ function _sbHdrs(){var k=_sbKey();return {'Content-Type':'application/json','Aut
 function _edgeFn(fn,body){return fetch(EDGE+'/'+fn,{method:'POST',headers:_sbHdrs(),body:JSON.stringify(body)}).then(function(r){return r.json();});}
 function _sbFetch(table,qs){return fetch(SB_URL+'/rest/v1/'+table+'?'+(qs||'select=*'),{headers:_sbHdrs()}).then(function(r){return r.json();});}
 function _sbInsert(table,data){return fetch(SB_URL+'/rest/v1/'+table,{method:'POST',headers:Object.assign({},_sbHdrs(),{'Prefer':'return=minimal'}),body:JSON.stringify(data)}).catch(function(){});}
+function _sbUpdate(id,data){return fetch(SB_URL+'/rest/v1/transactions?id=eq.'+id,{method:'PATCH',headers:Object.assign({},_sbHdrs(),{'Prefer':'return=minimal'}),body:JSON.stringify(data)}).catch(function(){});}
+function _sbDelete(id){return fetch(SB_URL+'/rest/v1/transactions?id=eq.'+id,{method:'DELETE',headers:_sbHdrs()}).catch(function(){});}
 function _openPlaid(onOk,onErr){_edgeFn('plaid-link',{action:'create_link_token'}).then(function(d){if(!d.link_token){onErr('No token');return;}window.Plaid.create({token:d.link_token,onSuccess:function(pt,meta){_edgeFn('plaid-link',{action:'exchange_token',public_token:pt,institution_name:meta.institution?meta.institution.name:'Bank',accounts:meta.accounts}).then(function(r){if(r.success)onOk();else onErr(JSON.stringify(r));});},onExit:function(e){if(e)onErr(e.display_message||e.error_message||'closed');}}).open();}).catch(function(e){onErr(e.message);});}
 function AccountsPanel(p){
   var accounts=p.accounts||[],syncing=p.syncing,lastSync=p.lastSync,onSync=p.onSync,onConnect=p.onConnect,setupRequired=p.setupRequired,onSetupKey=p.onSetupKey,cardNicknames=p.cardNicknames||{};
@@ -449,6 +451,13 @@ function TransactionsTab({ transactions, setTransactions, categories, projects }
     const tx = { ...form, amount: parseFloat(form.amount) };
     if (editId !== null) {
       setTransactions((ts) => ts.map((t) => String(t.id) === String(editId) ? { ...tx, id: t.id } : t));
+      if (String(editId).startsWith('db')) {
+        _sbUpdate(String(editId).replace('db',''), {
+          category: tx.category, sub_category: tx.subCategory,
+          notes: tx.notes, is_knauf: tx.isKnauf,
+          description: tx.description, amount: tx.amount
+        });
+      }
       setEditId(null);
     } else {
       setTransactions((ts) => [...ts, { ...tx, id: _nextId++ }]);
@@ -463,9 +472,21 @@ function TransactionsTab({ transactions, setTransactions, categories, projects }
   }
   function del(id) {
     setTransactions((ts) => ts.filter((t) => t.id !== id));
+    if (String(id).startsWith('db')) {
+      _sbDelete(String(id).replace('db',''));
+    }
   }
   function toggleKnauf(id) {
-    setTransactions((ts) => ts.map((t) => t.id === id ? { ...t, isKnauf: !t.isKnauf } : t));
+    setTransactions((ts) => ts.map((t) => {
+      if (t.id === id) {
+        var newVal = !t.isKnauf;
+        if (String(id).startsWith('db')) {
+          _sbUpdate(String(id).replace('db',''), {is_knauf: newVal});
+        }
+        return { ...t, isKnauf: newVal };
+      }
+      return t;
+    }));
   }
   function toggleProject(id, pid) {
     setTransactions((ts) => ts.map((t) => t.id === id ? { ...t, projectId: pid } : t));
