@@ -425,14 +425,12 @@ function TransactionsTab({ transactions, setTransactions, categories, projects }
   const [plaidMsg, setPlaidMsg] = useState("");
   const blank = { date: (/* @__PURE__ */ new Date()).toISOString().split("T")[0], description: "", amount: "", category: "Variable Spending", subCategory: "Groceries", notes: "", isKnauf: false, projectId: null, splits: [], saveRule: false };
   const [form, setForm] = useState(blank);
-  React.useEffect(function(){ setPage(0); }, [search, filterCat, filterMonth]);
-  const allFiltered = useMemo(() => transactions.filter((t) => {
+  const filtered = useMemo(() => transactions.filter((t) => {
     const m = filterMonth === "All" || new Date(t.date).getMonth() === +filterMonth;
     const c = filterCat === "All" || t.category === filterCat;
     const s = !search || t.description.toLowerCase().includes(search.toLowerCase()) || t.subCategory.toLowerCase().includes(search.toLowerCase()) || (t.notes || "").toLowerCase().includes(search.toLowerCase());
     return m && c && s;
   }).sort((a, b) => new Date(b.date) - new Date(a.date)), [transactions, filterCat, filterMonth, search]);
-  const filtered = useMemo(() => allFiltered.slice(0, (page + 1) * PAGE_SIZE), [allFiltered, page]);
   const subCats = form.category && categories[form.category] ? categories[form.category] : [];
   function save() {
     if (!form.description || !form.amount) return;
