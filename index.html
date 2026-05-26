@@ -420,17 +420,21 @@ function TransactionsTab({ transactions, setTransactions, categories, projects }
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState("All");
   const [filterMonth, setFilterMonth] = useState("All");
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 50;
   const [showAdd, setShowAdd] = useState(false);
   const [editId, setEditId] = useState(null);
   const [plaidMsg, setPlaidMsg] = useState("");
   const blank = { date: (/* @__PURE__ */ new Date()).toISOString().split("T")[0], description: "", amount: "", category: "Variable Spending", subCategory: "Groceries", notes: "", isKnauf: false, projectId: null, splits: [], saveRule: false };
   const [form, setForm] = useState(blank);
-  const filtered = useMemo(() => transactions.filter((t) => {
+  const allFiltered = useMemo(() => transactions.filter((t) => {
     const m = filterMonth === "All" || new Date(t.date).getMonth() === +filterMonth;
     const c = filterCat === "All" || t.category === filterCat;
     const s = !search || t.description.toLowerCase().includes(search.toLowerCase()) || t.subCategory.toLowerCase().includes(search.toLowerCase()) || (t.notes || "").toLowerCase().includes(search.toLowerCase());
     return m && c && s;
   }).sort((a, b) => new Date(b.date) - new Date(a.date)), [transactions, filterCat, filterMonth, search]);
+  React.useEffect(function(){ setPage(0); }, [search, filterCat, filterMonth]);
+  const filtered = useMemo(() => allFiltered.slice(0, (page + 1) * PAGE_SIZE), [allFiltered, page]);
   const subCats = form.category && categories[form.category] ? categories[form.category] : [];
   function save() {
     if (!form.description || !form.amount) return;
@@ -570,7 +574,7 @@ function TransactionsTab({ transactions, setTransactions, categories, projects }
   ? /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "text-purple-300 text-xs font-medium" }, "Split ("+t.splits.length+")"), t.splits.map(function(sp,i){ return /* @__PURE__ */ React.createElement("div", {key:i, className:"text-slate-400 text-xs"}, sp.subCategory+": "+fmt(parseFloat(sp.amount)||0)); }))
   : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "text-slate-300" }, t.subCategory), /* @__PURE__ */ React.createElement("div", { className: "text-slate-500 text-xs" }, t.category))), /* @__PURE__ */ React.createElement("td", { className: "px-4 py-3 text-slate-400 text-xs max-w-xs truncate" }, t.notes), /* @__PURE__ */ React.createElement("td", { className: `px-4 py-3 text-right font-mono font-semibold ${t.category === "Income" ? "text-emerald-400" : "text-white"}` }, fmt(t.amount)), /* @__PURE__ */ React.createElement("td", { className: "px-3 py-3 text-center" }, /* @__PURE__ */ React.createElement("button", { onClick: () => toggleKnauf(t.id), className: "text-slate-400 hover:text-sky-400 transition-colors" }, t.isKnauf ? /* @__PURE__ */ React.createElement(CheckSquare, { size: 16, className: "text-sky-400" }) : /* @__PURE__ */ React.createElement(Square, { size: 16 }))), /* @__PURE__ */ React.createElement("td", { className: "px-3 py-3 text-center" }, proj ? /* @__PURE__ */ React.createElement("span", { className: "text-xs px-1.5 py-0.5 bg-purple-500/20 text-purple-300 rounded border border-purple-500/30 whitespace-nowrap" }, proj.name.slice(0, 12), "\u2026") : /* @__PURE__ */ React.createElement("button", { onClick: () => {
     }, className: "text-slate-600 hover:text-purple-400 transition-colors" }, /* @__PURE__ */ React.createElement(Tag, { size: 14 }))), /* @__PURE__ */ React.createElement("td", { className: "px-3 py-3" }, /* @__PURE__ */ React.createElement("div", { className: "flex gap-1" }, /* @__PURE__ */ React.createElement("button", { onClick: () => startEdit(t), className: "p-1 text-slate-500 hover:text-sky-400 transition-colors" }, /* @__PURE__ */ React.createElement(Edit2, { size: 13 })), /* @__PURE__ */ React.createElement("button", { onClick: () => del(t.id), className: "p-1 text-slate-500 hover:text-red-400 transition-colors" }, /* @__PURE__ */ React.createElement(Trash2, { size: 13 })))));
-  })))), /* @__PURE__ */ React.createElement("div", { className: "px-4 py-3 border-t border-slate-700 flex items-center justify-between text-sm" }, /* @__PURE__ */ React.createElement("span", { className: "text-slate-400" }, filtered.length, " transactions"), /* @__PURE__ */ React.createElement("span", { className: "text-slate-300 font-mono font-semibold" }, "Total: ", fmt(filtered.filter((t) => t.category !== "Income").reduce((s, t) => s + t.amount, 0))))));
+  })))), /* @__PURE__ */ React.createElement("div", { className: "px-4 py-3 border-t border-slate-700 flex items-center justify-between text-sm flex-wrap gap-2" }, /* @__PURE__ */ React.createElement("span", { className: "text-slate-400" }, "Showing ", filtered.length, " of ", allFiltered.length), /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-3" }, filtered.length < allFiltered.length && /* @__PURE__ */ React.createElement("button", { onClick: function(){ setPage(function(p){ return p+1; }); }, className: "px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs text-white transition-colors" }, "Load ", Math.min(PAGE_SIZE, allFiltered.length - filtered.length), " more"), /* @__PURE__ */ React.createElement("span", { className: "text-slate-300 font-mono font-semibold" }, "Total: ", fmt(allFiltered.filter(function(t){ return t.category !== "Income"; }).reduce(function(s, t){ return s + t.amount; }, 0)))))));
 }
 function KnaufTab({ transactions }) {
   const knaufTx = useMemo(() => transactions.filter((t) => t.isKnauf).sort((a, b) => new Date(b.date) - new Date(a.date)), [transactions]);
