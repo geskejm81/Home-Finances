@@ -734,34 +734,6 @@ function BudgetApp() {
   function handleConnect(){if(!window.Plaid){setPlaidError('Plaid not loaded');return;}_openPlaid(function(){doSync();loadAccounts();},function(e){setPlaidError(String(e));});}
   function handleSetupKey(k){localStorage.setItem('sb_anon_key',k);setSetupRequired(false);}
   React.useEffect(function(){if(!setupRequired){loadAccounts();loadTransactions();}}, [setupRequired]);
-  var blendedActuals = React.useMemo(function() {
-    if (!transactions.length) return ACTUALS_2026;
-    var computed = {};
-    transactions.forEach(function(t) {
-      var m = new Date(t.date+'T00:00:00').getMonth();
-      if (m<0||m>11||!t.category||!t.subCategory) return;
-      if (!computed[t.category]) computed[t.category]={};
-      if (!computed[t.category][t.subCategory]) computed[t.category][t.subCategory]=new Array(12).fill(0);
-      computed[t.category][t.subCategory][m]+=t.amount;
-    });
-    var result = {};
-    Object.keys(ACTUALS_2026).forEach(function(cat) {
-      result[cat]={};
-      Object.keys(ACTUALS_2026[cat]).forEach(function(sub) {
-        result[cat][sub]=ACTUALS_2026[cat][sub].map(function(hard,m){
-          var c=computed[cat]&&computed[cat][sub]?computed[cat][sub][m]||0:0;
-          return c>0?c:hard;
-        });
-      });
-    });
-    Object.keys(computed).forEach(function(cat){
-      if(!result[cat])result[cat]={};
-      Object.keys(computed[cat]).forEach(function(sub){
-        if(!result[cat][sub])result[cat][sub]=computed[cat][sub];
-      });
-    });
-    return result;
-  }, [transactions]);
 
   const [tab, setTab] = useState("dashboard");
   const [transactions, setTransactions] = useState([]);
@@ -786,6 +758,34 @@ function BudgetApp() {
   const [categories, setCategories] = useState(INIT_CATEGORIES);
   const [budgets, setBudgets] = useState(INIT_BUDGETS);
   const [actuals2026] = useState(ACTUALS_2026);
+  const blendedActuals = useMemo(() => {
+    if (!transactions.length) return ACTUALS_2026;
+    const computed = {};
+    transactions.forEach(function(t) {
+      const m = new Date(t.date+'T00:00:00').getMonth();
+      if (m<0||m>11||!t.category||!t.subCategory) return;
+      if (!computed[t.category]) computed[t.category]={};
+      if (!computed[t.category][t.subCategory]) computed[t.category][t.subCategory]=new Array(12).fill(0);
+      computed[t.category][t.subCategory][m]+=t.amount;
+    });
+    const result = {};
+    Object.keys(ACTUALS_2026).forEach(cat => {
+      result[cat]={};
+      Object.keys(ACTUALS_2026[cat]).forEach(sub => {
+        result[cat][sub]=ACTUALS_2026[cat][sub].map((hard,m) => {
+          const c=computed[cat]&&computed[cat][sub]?computed[cat][sub][m]||0:0;
+          return c>0?c:hard;
+        });
+      });
+    });
+    Object.keys(computed).forEach(cat=>{
+      if(!result[cat])result[cat]={};
+      Object.keys(computed[cat]).forEach(sub=>{
+        if(!result[cat][sub])result[cat][sub]=computed[cat][sub];
+      });
+    });
+    return result;
+  }, [transactions]);
   const TABS = [
     { id: "dashboard", label: "Dashboard", icon: Home },
     { id: "transactions", label: "Transactions", icon: List },
