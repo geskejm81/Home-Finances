@@ -344,31 +344,27 @@ function Badge({ status }) {
   const labels = { planned: "Planned", active: "Active", complete: "Complete" };
   return /* @__PURE__ */ React.createElement("span", { className: `text-xs px-2 py-0.5 rounded-full border font-medium ${STATUS_COLORS[status]}` }, labels[status]);
 }
-function DashboardTab({ actuals2026, budgets, categories, transactions, computedActuals }) {
+function DashboardTab({ actuals2026, budgets, categories, transactions }) {
   const [selMonth, setSelMonth] = useState(CURRENT_MONTH);
   const [editBudget, setEditBudget] = useState(false);
   const [localBudgets, setLocalBudgets] = useState(budgets);
   const [expandedKey, setExpandedKey] = useState(null);
   const monthActuals = useMemo(() => {
-    var out = {};
-    var ca = computedActuals || {};
-    for (var cat of Object.keys(actuals2026)) {
+    const out = {};
+    for (const cat of Object.keys(actuals2026)) {
       out[cat] = {};
-      for (var sub of Object.keys(actuals2026[cat])) {
-        var hardcoded = actuals2026[cat][sub][selMonth] || 0;
-        var computed = (ca[cat] && ca[cat][sub]) ? (ca[cat][sub][selMonth] || 0) : 0;
-        // Use computed if available, else fall back to hardcoded
-        out[cat][sub] = computed > 0 ? computed : hardcoded;
+      for (const sub of Object.keys(actuals2026[cat])) {
+        out[cat][sub] = actuals2026[cat][sub][selMonth] || 0;
       }
     }
     return out;
-  }, [actuals2026, computedActuals, selMonth]);
+  }, [actuals2026, selMonth]);
   const totals = useMemo(() => ({
-    income: Object.values(monthActuals["Income"] || {}).reduce(function(s,v){return s+v;},0),
-    fixed: Object.values(monthActuals["Fixed Spending"] || {}).reduce(function(s,v){return s+v;},0),
-    variable: Object.values(monthActuals["Variable Spending"] || {}).reduce(function(s,v){return s+v;},0),
-    savings: Object.values(monthActuals["Savings"] || {}).reduce(function(s,v){return s+v;},0)
-  }), [monthActuals]);
+    income: sumCategory(actuals2026, "Income", selMonth),
+    fixed: sumCategory(actuals2026, "Fixed Spending", selMonth),
+    variable: sumCategory(actuals2026, "Variable Spending", selMonth),
+    savings: sumCategory(actuals2026, "Savings", selMonth)
+  }), [actuals2026, selMonth]);
   const net = totals.income - totals.fixed - totals.variable - totals.savings;
   const budgetTotals = {
     income: (localBudgets["Knauf Pay 15th"] || 0) + (localBudgets["Knauf Pay 30th"] || 0),
@@ -738,14 +734,31 @@ function BudgetApp() {
   function handleConnect(){if(!window.Plaid){setPlaidError('Plaid not loaded');return;}_openPlaid(function(){doSync();loadAccounts();},function(e){setPlaidError(String(e));});}
   function handleSetupKey(k){localStorage.setItem('sb_anon_key',k);setSetupRequired(false);}
   React.useEffect(function(){if(!setupRequired){loadAccounts();loadTransactions();}}, [setupRequired]);
-  var computedActuals = React.useMemo(function() {
-    var result = {};
+  var blendedActuals = React.useMemo(function() {
+    if (!transactions.length) return ACTUALS_2026;
+    var computed = {};
     transactions.forEach(function(t) {
-      var month = new Date(t.date + 'T00:00:00').getMonth();
-      if (month < 0 || month > 11 || !t.category || !t.subCategory) return;
-      if (!result[t.category]) result[t.category] = {};
-      if (!result[t.category][t.subCategory]) result[t.category][t.subCategory] = new Array(12).fill(0);
-      result[t.category][t.subCategory][month] = (result[t.category][t.subCategory][month] || 0) + t.amount;
+      var m = new Date(t.date+'T00:00:00').getMonth();
+      if (m<0||m>11||!t.category||!t.subCategory) return;
+      if (!computed[t.category]) computed[t.category]={};
+      if (!computed[t.category][t.subCategory]) computed[t.category][t.subCategory]=new Array(12).fill(0);
+      computed[t.category][t.subCategory][m]+=t.amount;
+    });
+    var result = {};
+    Object.keys(ACTUALS_2026).forEach(function(cat) {
+      result[cat]={};
+      Object.keys(ACTUALS_2026[cat]).forEach(function(sub) {
+        result[cat][sub]=ACTUALS_2026[cat][sub].map(function(hard,m){
+          var c=computed[cat]&&computed[cat][sub]?computed[cat][sub][m]||0:0;
+          return c>0?c:hard;
+        });
+      });
+    });
+    Object.keys(computed).forEach(function(cat){
+      if(!result[cat])result[cat]={};
+      Object.keys(computed[cat]).forEach(function(sub){
+        if(!result[cat][sub])result[cat][sub]=computed[cat][sub];
+      });
     });
     return result;
   }, [transactions]);
@@ -802,7 +815,7 @@ function BudgetApp() {
   }))), /* @__PURE__ */ React.createElement("main", { className: "max-w-6xl mx-auto px-4 py-6" }, tab === "dashboard" && React.createElement(React.Fragment, null,
         React.createElement(AccountsPanel, {accounts:accounts,syncing:syncing,lastSync:lastSync,onSync:doSync,onConnect:handleConnect,setupRequired:setupRequired,onSetupKey:handleSetupKey,cardNicknames:cardNicknames}),
         plaidError ? React.createElement('div',{className:'bg-red-900/30 border border-red-500/30 rounded-xl px-4 py-3 text-red-400 text-sm mb-4'},plaidError) : null,
-        React.createElement(DashboardTab, {actuals2026:actuals2026,budgets:budgets,categories:categories,transactions:transactions,computedActuals:computedActuals})), tab === "transactions" && /* @__PURE__ */ React.createElement(TransactionsTab, { transactions, setTransactions, categories, projects }), tab === "knauf" && /* @__PURE__ */ React.createElement(KnaufTab, { transactions }), tab === "projects" && /* @__PURE__ */ React.createElement(ProjectsTab, { projects, setProjects, transactions }), tab === "analytics" && /* @__PURE__ */ React.createElement(AnalyticsTab, { actuals2026 }), tab === "settings" && React.createElement(SettingsTab, {categories:categories,setCategories:setCategories,budgets:budgets,setBudgets:setBudgets,cardNicknames:cardNicknames,setCardNicknames:setCardNicknames,accounts:accounts})));
+        React.createElement(DashboardTab, {actuals2026:blendedActuals,budgets:budgets,categories:categories,transactions:transactions})), tab === "transactions" && /* @__PURE__ */ React.createElement(TransactionsTab, { transactions, setTransactions, categories, projects }), tab === "knauf" && /* @__PURE__ */ React.createElement(KnaufTab, { transactions }), tab === "projects" && /* @__PURE__ */ React.createElement(ProjectsTab, { projects, setProjects, transactions }), tab === "analytics" && /* @__PURE__ */ React.createElement(AnalyticsTab, { actuals2026 }), tab === "settings" && React.createElement(SettingsTab, {categories:categories,setCategories:setCategories,budgets:budgets,setBudgets:setBudgets,cardNicknames:cardNicknames,setCardNicknames:setCardNicknames,accounts:accounts})));
 }
 function AnalyticsTab({ actuals2026 }) {
   const chartRefs = {
