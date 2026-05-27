@@ -427,7 +427,7 @@ function TransactionsTab({ transactions, setTransactions, categories, projects }
   const [showAdd, setShowAdd] = useState(false);
   const [editId, setEditId] = useState(null);
   const [plaidMsg, setPlaidMsg] = useState("");
-  const blank = { date: (/* @__PURE__ */ new Date()).toISOString().split("T")[0], description: "", amount: "", category: "Variable Spending", subCategory: "Groceries", notes: "", isKnauf: false, projectId: null, splits: [], saveRule: false };
+  const blank = { date: (/* @__PURE__ */ new Date()).toISOString().split("T")[0], description: "", amount: "", category: "Variable Spending", subCategory: "Groceries", notes: "", isKnauf: false, projectId: null, splits: [], saveRule: false, excludeFromTotals: false };
   const [form, setForm] = useState(blank);
   const allFiltered = useMemo(() => transactions.filter((t) => {
     const m = filterMonth === "All" || new Date(t.date).getMonth() === +filterMonth;
@@ -455,7 +455,8 @@ function TransactionsTab({ transactions, setTransactions, categories, projects }
         _sbUpdate(String(editId).replace('db',''), {
           category: tx.category, sub_category: tx.subCategory,
           notes: tx.notes, is_knauf: tx.isKnauf,
-          description: tx.description, amount: tx.amount
+          description: tx.description, amount: tx.amount,
+          exclude_from_totals: tx.excludeFromTotals === true
         });
       }
       setEditId(null);
@@ -492,7 +493,7 @@ function TransactionsTab({ transactions, setTransactions, categories, projects }
     setShowAdd(false);
   }
   function startEdit(t) {
-    setForm({ ...t, amount: String(t.amount), splits: t.splits || [], saveRule: false, origCat: t.category, origSub: t.subCategory });
+    setForm({ ...t, amount: String(t.amount), splits: t.splits || [], saveRule: false, origCat: t.category, origSub: t.subCategory, excludeFromTotals: !!t.excludeFromTotals });
     setEditId(t.id);
     setShowAdd(true);
   }
@@ -797,7 +798,7 @@ function BudgetApp() {
         return {id:'db'+t.id,date:t.date,description:t.description||'',
           amount:parseFloat(t.amount)||0,category:t.category||'Variable Spending',
           subCategory:t.sub_category||'Home Supplies',notes:t.notes||'',
-          isKnauf:t.is_knauf||false,projectId:t.project_id||null,splits:[]};
+          isKnauf:t.is_knauf||false,projectId:t.project_id||null,splits:[],excludeFromTotals:t.exclude_from_totals===true};
       });
       setTransactions(function(curr){
         var local=curr.filter(function(t){return typeof t.id==='number';});
