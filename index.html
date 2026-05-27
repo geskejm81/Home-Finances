@@ -380,7 +380,7 @@ function DashboardTab({ actuals2026, budgets, categories, transactions }) {
     { key: "Savings", label: "Savings", isIncome: false },
     { key: "Fixed Spending", label: "Fixed Spending", isIncome: false },
     { key: "Variable Spending", label: "Variable Spending", isIncome: false }
-  ].map(({ key, label, isIncome }) => /* @__PURE__ */ React.createElement("div", { key, className: "bg-slate-800 border border-slate-700 rounded-xl overflow-hidden" }, /* @__PURE__ */ React.createElement("div", { className: "px-4 py-3 border-b border-slate-700 flex items-center justify-between" }, /* @__PURE__ */ React.createElement("h3", { className: "font-semibold text-white" }, label), /* @__PURE__ */ React.createElement("span", { className: "text-slate-400 text-sm font-mono" }, fmt(Object.values(actuals2026[key] || {}).reduce((s, arr) => s + (arr[selMonth] || 0), 0)))), /* @__PURE__ */ React.createElement("div", { className: "divide-y divide-slate-700/50" }, Object.keys(actuals2026[key] || {}).map((sub) => {
+  ].map(({ key, label, isIncome }) => /* @__PURE__ */ React.createElement("div", { key, className: "bg-slate-800 border border-slate-700 rounded-xl overflow-hidden" }, /* @__PURE__ */ React.createElement("div", { className: "px-4 py-3 border-b border-slate-700 flex items-center justify-between" }, /* @__PURE__ */ React.createElement("h3", { className: "font-semibold text-white" }, label), /* @__PURE__ */ React.createElement("span", { className: "text-slate-400 text-sm font-mono" }, fmt(Object.values(actuals2026[key] || {}).reduce((s, arr) => s + (arr[selMonth] || 0), 0)))), /* @__PURE__ */ React.createElement("div", { className: "divide-y divide-slate-700/50" }, Object.keys(actuals2026[key] || {}).sort().map((sub) => {
     const actual = actuals2026[key][sub][selMonth] || 0;
     const budget = localBudgets[sub] || 0;
     const indicator = isPast ? getIndicator(actual, budget, isIncome) : null;
@@ -437,7 +437,7 @@ function TransactionsTab({ transactions, setTransactions, categories, projects }
   }).sort((a, b) => new Date(b.date) - new Date(a.date)), [transactions, filterCat, filterMonth, search]);
   React.useEffect(function(){ setPage(0); }, [search, filterCat, filterMonth]);
   const filtered = useMemo(() => allFiltered.slice(0, (page + 1) * PAGE_SIZE), [allFiltered, page]);
-  const subCats = form.category && categories[form.category] ? categories[form.category] : [];
+  const subCats = form.category && categories[form.category] ? [...categories[form.category]].sort() : [];
   function save() {
     if (!form.description || !form.amount) return;
     if (form.splits && form.splits.length > 0) {
@@ -548,7 +548,7 @@ function TransactionsTab({ transactions, setTransactions, categories, projects }
       placeholder: "0.00",
       className: "w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500"
     }
-  )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "text-xs text-slate-400 mb-1 block" }, "Category"), /* @__PURE__ */ React.createElement(Select, { value: form.category, onChange: (v) => setForm({ ...form, category: v, subCategory: categories[v]?.[0] || "" }), options: Object.keys(categories), className: "w-full" })), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "text-xs text-slate-400 mb-1 block" }, "Sub-Category"), /* @__PURE__ */ React.createElement(Select, { value: form.subCategory, onChange: (v) => setForm({ ...form, subCategory: v }), options: subCats, className: "w-full" })), /* @__PURE__ */ React.createElement("div", { className: "col-span-2 md:col-span-1" }, /* @__PURE__ */ React.createElement("label", { className: "text-xs text-slate-400 mb-1 block" }, "Notes"), /* @__PURE__ */ React.createElement(
+  )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "text-xs text-slate-400 mb-1 block" }, "Category"), /* @__PURE__ */ React.createElement(Select, { value: form.category, onChange: (v) => setForm({ ...form, category: v, subCategory: categories[v]?.[0] || "" }), options: Object.keys(categories).sort(), className: "w-full" })), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "text-xs text-slate-400 mb-1 block" }, "Sub-Category"), /* @__PURE__ */ React.createElement(Select, { value: form.subCategory, onChange: (v) => setForm({ ...form, subCategory: v }), options: subCats, className: "w-full" })), /* @__PURE__ */ React.createElement("div", { className: "col-span-2 md:col-span-1" }, /* @__PURE__ */ React.createElement("label", { className: "text-xs text-slate-400 mb-1 block" }, "Notes"), /* @__PURE__ */ React.createElement(
     "input",
     {
       value: form.notes,
@@ -574,7 +574,7 @@ function TransactionsTab({ transactions, setTransactions, categories, projects }
           /* @__PURE__ */ React.createElement("p", { className: "text-xs text-slate-400 font-medium uppercase tracking-wider" }, "Split amounts must total ", fmt(parseFloat(form.amount)||0)),
           form.splits.map(function(split, idx) {
             return /* @__PURE__ */ React.createElement("div", { key: idx, className: "flex gap-2 items-center flex-wrap" },
-              /* @__PURE__ */ React.createElement(Select, { value: split.category, onChange: function(v){ var ns=[...form.splits]; ns[idx]={...split,category:v,subCategory:categories[v]?.[0]||''}; setForm({...form,splits:ns}); }, options: Object.keys(categories), className: "flex-1 min-w-32" }),
+              /* @__PURE__ */ React.createElement(Select, { value: split.category, onChange: function(v){ var ns=[...form.splits]; ns[idx]={...split,category:v,subCategory:categories[v]?.[0]||''}; setForm({...form,splits:ns}); }, options: Object.keys(categories).sort(), className: "flex-1 min-w-32" }),
               /* @__PURE__ */ React.createElement(Select, { value: split.subCategory, onChange: function(v){ var ns=[...form.splits]; ns[idx]={...split,subCategory:v}; setForm({...form,splits:ns}); }, options: categories[split.category]||[], className: "flex-1 min-w-36" }),
               /* @__PURE__ */ React.createElement("input", { type: "number", step: "0.01", value: split.amount, placeholder: "Amount", onChange: function(e){ var ns=[...form.splits]; ns[idx]={...split,amount:e.target.value}; setForm({...form,splits:ns}); }, className: "w-24 bg-slate-700 border border-slate-600 rounded-lg px-2 py-2 text-sm text-white text-right font-mono focus:outline-none focus:border-sky-500" }),
               form.splits.length > 1 && /* @__PURE__ */ React.createElement("button", { onClick: function(){ setForm({...form,splits:form.splits.filter(function(_,i){return i!==idx;})}); }, className: "p-1 text-red-400 hover:text-red-300" }, /* @__PURE__ */ React.createElement(X, { size: 14 }))
@@ -704,7 +704,7 @@ function SettingsTab({ categories, setCategories, budgets, setBudgets, cardNickn
       onChange: (e) => setBudgets((b) => ({ ...b, [sub]: parseFloat(e.target.value) || 0 })),
       className: "w-28 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm text-white text-right font-mono focus:outline-none focus:border-sky-500"
     }
-  ), /* @__PURE__ */ React.createElement("span", { className: "text-slate-500 text-xs" }, "/mo")))))))), activeSec === "categories" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, /* @__PURE__ */ React.createElement("p", { className: "text-slate-400 text-sm" }, "Add or remove subcategories from each category group. These populate all dropdowns throughout the app."), /* @__PURE__ */ React.createElement(Select, { value: editCat, onChange: setEditCat, options: Object.keys(categories), className: "w-full" }), /* @__PURE__ */ React.createElement("div", { className: "bg-slate-800 border border-slate-700 rounded-xl overflow-hidden" }, /* @__PURE__ */ React.createElement("div", { className: "p-3 border-b border-slate-700 flex gap-2" }, /* @__PURE__ */ React.createElement(
+  ), /* @__PURE__ */ React.createElement("span", { className: "text-slate-500 text-xs" }, "/mo")))))))), activeSec === "categories" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, /* @__PURE__ */ React.createElement("p", { className: "text-slate-400 text-sm" }, "Add or remove subcategories from each category group. These populate all dropdowns throughout the app."), /* @__PURE__ */ React.createElement(Select, { value: editCat, onChange: setEditCat, options: Object.keys(categories).sort(), className: "w-full" }), /* @__PURE__ */ React.createElement("div", { className: "bg-slate-800 border border-slate-700 rounded-xl overflow-hidden" }, /* @__PURE__ */ React.createElement("div", { className: "p-3 border-b border-slate-700 flex gap-2" }, /* @__PURE__ */ React.createElement(
     "input",
     {
       value: newSub,
