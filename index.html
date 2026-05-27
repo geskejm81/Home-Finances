@@ -460,7 +460,33 @@ function TransactionsTab({ transactions, setTransactions, categories, projects }
       }
       setEditId(null);
     } else {
-      setTransactions((ts) => [...ts, { ...tx, id: _nextId++ }]);
+      var tempId = _nextId++;
+      setTransactions((ts) => [...ts, { ...tx, id: tempId }]);
+      // Save new transaction to Supabase
+      if (_sbKey()) {
+        fetch(SB_URL+'/rest/v1/transactions', {
+          method: 'POST',
+          headers: Object.assign({}, _sbHdrs(), {'Prefer': 'return=representation'}),
+          body: JSON.stringify({
+            date: tx.date,
+            description: tx.description,
+            amount: tx.amount,
+            category: tx.category,
+            sub_category: tx.subCategory,
+            notes: tx.notes || '',
+            is_knauf: tx.isKnauf || false,
+            project_id: tx.projectId || null
+          })
+        }).then(function(r){ return r.json(); }).then(function(rows) {
+          if (rows && rows[0] && rows[0].id) {
+            setTransactions(function(ts) {
+              return ts.map(function(t) {
+                return t.id === tempId ? Object.assign({}, t, {id: 'db'+rows[0].id}) : t;
+              });
+            });
+          }
+        }).catch(function(){});
+      }
     }
     setForm(blank);
     setShowAdd(false);
