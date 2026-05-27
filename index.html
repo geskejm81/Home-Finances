@@ -754,7 +754,30 @@ function BudgetApp() {
   function handleConnect(){if(!window.Plaid){setPlaidError('Plaid not loaded');return;}_openPlaid(function(){doSync();loadAccounts();},function(e){setPlaidError(String(e));});}
   function handleSetupKey(k){localStorage.setItem('sb_anon_key',k);setSetupRequired(false);}
   React.useEffect(function(){if(!setupRequired){loadAccounts();loadTransactions();}}, [setupRequired]);
+
   const [actuals2026] = useState(ACTUALS_2026);
+
+  const [tab, setTab] = useState("dashboard");
+  const [transactions, setTransactions] = useState([]);
+
+  function loadTransactions() {
+    if (!_sbKey()) return;
+    _sbFetch('transactions','select=*&order=date.desc&limit=500').then(function(data) {
+      if (!Array.isArray(data)) return;
+      var rows = data.map(function(t) {
+        return {id:'db'+t.id,date:t.date,description:t.description||'',
+          amount:parseFloat(t.amount)||0,category:t.category||'Variable Spending',
+          subCategory:t.sub_category||'Home Supplies',notes:t.notes||'',
+          isKnauf:t.is_knauf||false,projectId:t.project_id||null,splits:[],
+          excludeFromTotals:t.exclude_from_totals===true};
+      });
+      setTransactions(function(curr){
+        var local=curr.filter(function(t){return typeof t.id==='number';});
+        return rows.concat(local);
+      });
+    }).catch(function(){});
+  }
+
   const blendedActuals = useMemo(() => {
     if (!transactions.length) return ACTUALS_2026;
     const computed = {};
@@ -783,27 +806,6 @@ function BudgetApp() {
     });
     return result;
   }, [transactions]);
-
-  const [tab, setTab] = useState("dashboard");
-  const [transactions, setTransactions] = useState([]);
-
-  function loadTransactions() {
-    if (!_sbKey()) return;
-    _sbFetch('transactions','select=*&order=date.desc&limit=500').then(function(data) {
-      if (!Array.isArray(data)) return;
-      var rows = data.map(function(t) {
-        return {id:'db'+t.id,date:t.date,description:t.description||'',
-          amount:parseFloat(t.amount)||0,category:t.category||'Variable Spending',
-          subCategory:t.sub_category||'Home Supplies',notes:t.notes||'',
-          isKnauf:t.is_knauf||false,projectId:t.project_id||null,splits:[],
-          excludeFromTotals:t.exclude_from_totals===true};
-      });
-      setTransactions(function(curr){
-        var local=curr.filter(function(t){return typeof t.id==='number';});
-        return rows.concat(local);
-      });
-    }).catch(function(){});
-  }
   const [projects, setProjects] = useState(INIT_PROJECTS);
   const [categories, setCategories] = useState(INIT_CATEGORIES);
   const [budgets, setBudgets] = useState(INIT_BUDGETS);
@@ -1031,4 +1033,3 @@ ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(
   </script>
 </body>
 </html>
-
