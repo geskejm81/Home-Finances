@@ -47,7 +47,7 @@ function AccountsPanel(p){
 }
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const FULL_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-const CURRENT_MONTH = 4;
+const CURRENT_MONTH = new Date().getMonth();
 const STATUS_COLORS = { planned: "text-sky-400 bg-sky-400/10 border-sky-400/30", active: "text-amber-400 bg-amber-400/10 border-amber-400/30", complete: "text-emerald-400 bg-emerald-400/10 border-emerald-400/30" };
 const INIT_CATEGORIES = {
   "Income": ["Knauf Pay 15th", "Knauf Pay 30th", "Extra Income"],
