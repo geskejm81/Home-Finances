@@ -351,6 +351,7 @@ function DashboardTab({ actuals2026, budgets, categories, transactions }) {
   const [editBudget, setEditBudget] = useState(false);
   const [localBudgets, setLocalBudgets] = useState(budgets);
   const [expandedKey, setExpandedKey] = useState(null);
+  const [knaufOpen, setKnaufOpen] = useState(false);
   const monthActuals = useMemo(() => {
     const out = {};
     for (const cat of Object.keys(actuals2026)) {
@@ -406,7 +407,6 @@ function DashboardTab({ actuals2026, budgets, categories, transactions }) {
           var knaufTxs = (transactions||[]).filter(function(t){return t.isKnauf&&!t.excludeFromTotals&&new Date(t.date+'T00:00:00').getMonth()===selMonth&&new Date(t.date+'T00:00:00').getFullYear()===2026;});
           if (!knaufTxs.length) return null;
           var knaufTotal = knaufTxs.reduce(function(s,t){return s+Math.abs(t.amount);},0);
-          var [knaufOpen, setKnaufOpen] = React.useState(false);
           return /* @__PURE__ */ React.createElement("div", { className: "bg-slate-800 border border-sky-500/30 rounded-xl overflow-hidden" },
             /* @__PURE__ */ React.createElement("div", { className: "px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-slate-700/30 transition-colors", onClick: function(){ setKnaufOpen(!knaufOpen); } },
               /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-3" },
