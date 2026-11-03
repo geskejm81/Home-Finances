@@ -102,3 +102,35 @@ test('November reconciliation: amount, direction, and a few days', () => {
   assert.deepEqual(matches.sort((x, y) => x.id - y.id), [{ external_id: 'a', id: 1 }, { external_id: 'b', id: 2 }, { external_id: 'c', id: 3 }]);
   assert.deepEqual(unmatched.sort(), ['d', 'e', 'f']);
 });
+
+import { trend, status, budgetFor, workingLines, lockedBudget } from '../src/core/budget.js';
+
+test('budget status colors: spending vs income', () => {
+  assert.equal(status(70, 100), 'g'); assert.equal(status(85, 100), 'y'); assert.equal(status(101, 100), 'r');
+  assert.equal(status(100, 100, true), 'g'); assert.equal(status(85, 100, true), 'y'); assert.equal(status(50, 100, true), 'r');
+});
+
+test('trend: growing, flat, one-off spike', () => {
+  assert.equal(trend([100,105,110,118,125,130,140,150,155,165,170,180]), 'up');
+  assert.equal(trend([100,98,103,101,99,100,102,97,100,101,99,100]), 'flat');
+  assert.equal(trend([50,55,48,52,50,900,51,49,53,50,52,48]), 'spike');
+});
+
+test('budget: draft → lock → revise needs a reason; locked budget drives budgetFor', () => {
+  fresh();
+  const y = +TODAY.slice(0, 4);
+  const lines = workingLines(y);
+  assert.ok(lines.Groceries > 0, 'suggestion for groceries');
+  assert.ok(lines.Mortgage >= 2150, 'fixed bills suggest at least the current amount');
+  run('budget.lock', { year: y, lines });
+  assert.equal(lockedBudget(y).rev, 1);
+  assert.equal(budgetFor(ym(TODAY), 'Groceries').amount, lines.Groceries);
+  assert.throws(() => run('budget.set', { year: y, c: 'Groceries', a: 1 }));
+  run('budget.revise', { year: y });
+  run('budget.set', { year: y, c: 'Groceries', a: lines.Groceries + 100 });
+  assert.throws(() => run('budget.lock', { year: y, lines: workingLines(y), reason: ' ' }));
+  run('budget.lock', { year: y, lines: workingLines(y), reason: 'More people at home' });
+  assert.equal(lockedBudget(y).rev, 2);
+  assert.equal(budgetFor(ym(TODAY), 'Groceries').amount, lines.Groceries + 100);
+  assert.equal(S.budgets.length, 2, 'the first revision is kept');
+});

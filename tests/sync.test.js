@@ -5,10 +5,10 @@ import { S, setState, seed } from '../src/core/store.js';
 import { run } from '../src/core/model.js';
 import { createSync, txToRow, rowToTx } from '../src/data/sync.js';
 
-const KEYS = { categories: ['household_id', 'name'], accounts: ['household_id', 'id'], rules: ['household_id', 'match'], projects: ['household_id', 'id'], transactions: ['id'] };
+const KEYS = { categories: ['household_id', 'name'], accounts: ['household_id', 'id'], rules: ['household_id', 'match'], projects: ['household_id', 'id'], budgets: ['household_id', 'year', 'rev'], budget_drafts: ['household_id', 'year'], transactions: ['id'] };
 
 function fakeApi() {
-  const db = { households: [{ id: 'hh', name: 'Test', people: ['Alex'] }], categories: [], accounts: [], rules: [], projects: [], transactions: [], plaid_items: [] };
+  const db = { households: [{ id: 'hh', name: 'Test', people: ['Alex'] }], categories: [], accounts: [], rules: [], projects: [], budgets: [], budget_drafts: [], transactions: [], plaid_items: [] };
   const calls = [];
   const api = async (path, { method = 'GET', body, headers = {} } = {}) => {
     calls.push(method + ' ' + path.split('?')[0]);
@@ -37,7 +37,7 @@ function fakeApi() {
   };
   return { api, db, calls };
 }
-const strip = s => JSON.parse(JSON.stringify({ cats: s.cats, txns: s.txns, projects: s.projects, accounts: s.accounts, rules: s.rules }));
+const strip = s => JSON.parse(JSON.stringify({ cats: s.cats, txns: s.txns, projects: s.projects, accounts: s.accounts, rules: s.rules, budgets: s.budgets, budgetDrafts: s.budgetDrafts }));
 
 test('a transaction survives the row mapping unchanged', () => {
   setState(seed());
@@ -73,4 +73,19 @@ test('only changed rows are sent; deletes and undo are synced', async () => {
   calls.length = 0; await sync.pushNow(S);
   assert.ok(calls.includes('DELETE transactions'));
   assert.equal(db.transactions.some(r => r.id === t.id), false);
+});
+
+test('budget drafts and locked revisions round-trip; revisions are insert-only', async () => {
+  setState(seed());
+  const { api, db, calls } = fakeApi();
+  const sync = createSync(api);
+  await sync.load(); await sync.pushNow(S);
+  run('budget.set', { year: 2027, c: 'Groceries', a: 900 });
+  run('budget.lock', { year: 2027, lines: { Groceries: 900 }, by: 'me' });
+  calls.length = 0; await sync.pushNow(S);
+  assert.ok(calls.includes('POST budgets'));
+  assert.equal(db.budgets.length, 1);
+  assert.equal(db.budget_drafts.length, 0);
+  const loaded = await createSync(api).load();
+  assert.deepEqual(strip(loaded).budgets, strip(S).budgets);
 });

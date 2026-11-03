@@ -23,6 +23,16 @@ const TABLES = {
     fromState: S => S.projects.map(p => ({ id: p.id, year: p.year, name: p.name, period: p.when || null, amount: p.a || 0, detail: p.detail || null })),
     toState: rows => rows.map(r => clean({ id: r.id, year: r.year, name: r.name, when: r.period || '', a: Number(r.amount), detail: r.detail })),
   },
+  budgets: {               // locked revisions: insert only (the database refuses changes)
+    key: r => `${r.year}:${r.rev}`, keyCols: ['year'], insertOnly: true,
+    fromState: S => (S.budgets || []).map(b => ({ year: b.year, rev: b.rev, lines: b.lines, reason: b.reason, created_by: b.by || null, created_at: b.at })),
+    toState: rows => rows.map(r => ({ year: r.year, rev: r.rev, lines: r.lines, reason: r.reason, by: r.created_by || '', at: r.created_at })),
+  },
+  budget_drafts: {
+    key: r => String(r.year), keyCols: ['year'], conflict: 'household_id,year',
+    fromState: S => Object.entries(S.budgetDrafts || {}).map(([y, d]) => ({ year: +y, lines: d.lines })),
+    toState: rows => Object.fromEntries(rows.map(r => [r.year, { lines: r.lines }])),
+  },
   transactions: {
     key: r => String(r.id), keyCols: ['id'], conflict: 'id',
     fromState: S => S.txns.map(txToRow),
@@ -51,7 +61,7 @@ export function rowToTx(r) {
   return t;
 }
 
-const STATE_KEY = { categories: 'cats', accounts: 'accounts', rules: 'rules', projects: 'projects', transactions: 'txns' };
+const STATE_KEY = { categories: 'cats', accounts: 'accounts', rules: 'rules', projects: 'projects', budgets: 'budgets', budget_drafts: 'budgetDrafts', transactions: 'txns' };
 const sameRow = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 export function createSync(api, { onStatus = () => {} } = {}) {
@@ -101,9 +111,10 @@ export function createSync(api, { onStatus = () => {} } = {}) {
       const def = TABLES[table];
       for (let i = 0; i < upserts.length; i += 500) {
         const batch = upserts.slice(i, i + 500).map(r => ({ household_id: household, ...r }));
-        await api(`${table}?on_conflict=${def.conflict}`, { method: 'POST', body: batch, headers: { Prefer: 'resolution=merge-duplicates,return=minimal' } });
+        await api(def.insertOnly ? table : `${table}?on_conflict=${def.conflict}`, { method: 'POST', body: batch, headers: { Prefer: def.insertOnly ? 'return=minimal' : 'resolution=merge-duplicates,return=minimal' } });
         for (const r of upserts.slice(i, i + 500)) (synced[table] ||= new Map()).set(def.key(r), r);
       }
+      if (def.insertOnly) continue;
       for (let i = 0; i < deletes.length; i += 200) {
         const keys = deletes.slice(i, i + 200);
         const list = keys.map(k => `"${String(k).replace(/"/g, '\\"')}"`).join(',');

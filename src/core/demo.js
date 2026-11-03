@@ -147,6 +147,8 @@ export function demoState(today) {
     demo: true,
     cats: Object.entries(CATS).flatMap(([group, names]) => names.map(name => ({ name, group }))),
     people: PEOPLE,
+    budgets: [],
+    budgetDrafts: {},
     txns: txns.sort((a, b) => a.d.localeCompare(b.d) || a.id - b.id),
     projects: [
       { id: 'p1', year: y - 1, when: 'May', name: 'Exterior Painting', a: 6400 },

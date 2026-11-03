@@ -4,6 +4,7 @@ import { GROUPS, MON, MONL, TODAY, addYm, dObj, dayLabel, esc, fmt, money, short
 import { S, catGroup, label, txById } from '../core/store.js';
 import { agg, catLabel, counts, inbox, knaufSummary, month, netOf, parts, pivot, projectTotal, returnsOf, searchTx, suggest, typical } from '../core/model.js';
 import { UI } from './state.js';
+import { budgetFor, groupBudgets, isInverse, lockedBudget, revisions, runRate, series, status, suggestBudget, trend, workingLines } from '../core/budget.js';
 import { barChart, lineChart } from './charts.js';
 import { go } from './app.js';
 import { ic } from './icons.js';
@@ -58,49 +59,75 @@ export function vMonth(){
   const isCur = k===ym(TODAY);
   const pace = isCur ? (+TODAY.slice(8)) / new Date(y, mo, 0).getDate() : null;
   const ks = knaufSummary();
-  const groupRow = g => {
-    const v = m[g.id], typ = typical(k, g.id, true), open = UI.open[g.id];
-    const cats = Object.entries(m.cats).filter(([c]) => G[c]===g.id).sort((a,b)=>b[1]-a[1]);
-    const bar = (val, t) => t>0 ? `<span class="bar hide-m"><b class="${g.id!=='income'&&g.id!=='savings'&&val>t*1.1?'over':''}" style="width:${Math.min(100, val/t*100)}%"></b>${pace&&g.id==='variable'?`<i style="left:${pace*100}%"></i>`:''}</span>` : `<span class="bar hide-m" style="visibility:hidden"></span>`;
-    return `<div class="row lg click ${open?'open':''}" data-act="toggleGroup" data-g="${g.id}">${ic('chev','chev')}<span class="name">${g.name}</span>${bar(v,typ)}<span class="amt ${g.id==='income'?'in':''}">${g.id==='income'?'+':''}${fmt(v)}</span></div>`
-      + (open ? cats.map(([c, val]) => {
-        const tc = typical(k, c), o = UI.openCat===c;
-        const txs = o ? S.txns.filter(t => counts(t) && ym(t.d)===k && parts(t).some(p=>p.c===c)).sort((a,b)=>b.d.localeCompare(a.d)) : [];
-        return `<div class="row nest click ${o?'open':''}" data-act="toggleCat" data-c="${esc(c)}">${ic('chev','chev')}<span class="name">${esc(c)}</span>${bar(val,tc)}<span class="amt">${fmt(val)}</span></div>`
-          + txs.map(t => `<div class="nest2">${txRow(t)}</div>`).join('');
-      }).join('') : '');
+  const locked = !!lockedBudget(y);
+  const meter = (pct, st) => `<span class="meter"><b class="f-${st||'n'}" style="width:${Math.max(0, Math.min(100, pct))}%"></b>${pace!=null?`<i style="left:${pace*100}%"></i>`:''}</span>`;
+  // name | bar | actual | budget | difference
+  const cells = (name, actual, budget, inv, chev) => {
+    const st = status(actual, budget, inv), pct = budget>0 ? actual/budget*100 : (actual>0 ? 100 : 0);
+    const diff = inv ? actual - budget : budget - actual;
+    return `<td class="nm">${chev}<span>${name}</span>${meter(pct, st)}</td><td class="barc">${meter(pct, st)}</td>
+      <td class="num">${fmt(actual,false)}</td><td class="num dim">${budget ? fmt(budget,false) : '–'}</td>
+      <td class="num ${budget ? (diff >= 0 ? 's-g' : 's-r') : ''}">${budget ? fmt(diff,false) : '–'}</td>`;
   };
-  return `<div class="page"><div class="top">
+  const chev = open => `<span class="chev ${open?'open':''}">${ic('chev')}</span>`;
+  const rows = GROUPS.map(g => {
+    const inv = isInverse(g.id), open = UI.open[g.id];
+    const gb = budgetFor(k, g.id, true).amount;
+    let out = `<tr class="grp click" data-act="toggleGroup" data-g="${g.id}">${cells(g.name, m[g.id], gb, inv, chev(open))}</tr>`;
+    if (!open) return out;
+    const names = S.cats.filter(c => c.group===g.id).map(c => c.name)
+      .map(c => [c, m.cats[c] || 0, budgetFor(k, c).amount]).filter(([, a, b]) => a || b)
+      .sort((a, b) => Math.max(b[1], b[2]) - Math.max(a[1], a[2]));
+    for (const [c, a, b] of names){
+      const o = UI.openCat===c;
+      out += `<tr class="cat click" data-act="toggleCat" data-c="${esc(c)}">${cells(esc(c), a, b, inv, chev(o))}</tr>`;
+      if (o) out += S.txns.filter(t => counts(t) && ym(t.d)===k && parts(t).some(p => p.c===c)).sort((x, z) => z.d.localeCompare(x.d))
+        .map(t => `<tr class="txr click" data-tx="${t.id}"><td class="nm" colspan="2"><span>${esc(label(t))}</span><span class="dim">${shortDate(t.d)}${t.n && t.m ? ' · '+esc(t.n) : ''}</span></td>
+          <td class="num">${fmt(t.split ? t.split.filter(p => p.c===c).reduce((s, p) => s + p.a, 0) : t.a)}</td><td></td><td></td></tr>`).join('');
+    }
+    return out;
+  }).join('');
+  const lb = budgetFor(k, 'left', true).amount;
+  return `<div class="page wide-m"><div class="top">
       <button class="icon" data-act="month" data-d="-1">${ic('left')}</button>
       <h1>${MONL[mo-1]} ${y}</h1>
       <button class="icon" data-act="month" data-d="1">${ic('chev')}</button><span class="sp"></span>
       ${!isCur?`<button class="btn ghost" data-act="month" data-d="0">Today</button>`:''}
     </div>
     <div class="hero"><div class="big ${m.left<0?'neg':''}">${money(m.left,false)}</div><div class="cap">left</div></div>
-    ${GROUPS.map(groupRow).join('')}
+    <div class="tbl"><table class="mt"><thead><tr><th></th><th class="barc"></th><th>Actual</th><th>${locked?'Budget':'Typical'}</th><th>Difference</th></tr></thead>
+      <tbody>${rows}<tr class="left">${cells('Left', m.left, lb, true, '')}</tr></tbody></table></div>
     ${ks.outstanding>0 ? `<div class="sec"><div class="row click" data-go="knauf"><span class="name">Knauf</span><span class="sub">${ks.open.length+ks.submitted.length} items</span><span class="amt">${fmt(ks.outstanding)}</span></div></div>`:''}
   </div>`;
 }
 
 /* ---------- Year (pivot) ---------- */
 export function vYear(){
-  const y = UI.year, g = UI.yearGroup;
-  const years = [...new Set(S.txns.map(t=>+t.d.slice(0,4)))].filter(v=>v<=+TODAY.slice(0,4)).sort();
+  const y = UI.year, g = UI.yearGroup, cy = +TODAY.slice(0,4);
+  const years = [...new Set(S.txns.map(t=>+t.d.slice(0,4)))].filter(v=>v<=cy).sort();
   const mk = i => `${y}-${String(i+1).padStart(2,'0')}`;
-  const cell = (v, extra='') => `<td class="${Math.abs(v)<0.005?'z':''} ${v<0?'neg':''} ${extra}">${Math.abs(v)<0.005?'–':fmt(v,false)}</td>`;
+  const B = lockedBudget(y), gb = B ? groupBudgets(B.lines) : null;
+  const upto = y < cy ? 12 : y===cy ? +TODAY.slice(5,7) : 0;          // months that can be judged
+  const cell = (v, st='', extra='') => `<td class="${Math.abs(v)<0.005?'z':''} ${st?'s-'+st:''} ${extra}">${Math.abs(v)<0.005?'–':fmt(v,false)}</td>`;
+  // One row: monthly cells judged against a monthly budget, total judged year-to-date.
+  const row = (name, vals, budget, inv, cls='', cellExtra=()=> '') => {
+    const total = vals.reduce((a,b)=>a+b,0), ytd = vals.slice(0, upto).reduce((a,b)=>a+b,0);
+    const st = (v, i) => budget!=null && i < upto && Math.abs(v) > 0.005 ? status(v, budget, inv) : '';
+    return `<tr class="${cls}"><td title="${esc(name)}">${esc(name)}</td>${vals.map((v,i)=>cell(v, st(v,i), cellExtra(i))).join('')}${cell(total, budget!=null && upto ? status(ytd, budget*upto, inv) : '')}</tr>`;
+  };
   let body;
   if (g==='summary'){
     const proj = S.projects.filter(p=>p.year===y).reduce((s,p)=>s+projectTotal(p),0);
-    const line = (name, f, cls='') => { const v = MON.map((_,i)=>f(month(mk(i)))); return `<tr class="${cls}"><td>${name}</td>${v.map(x=>cell(x)).join('')}${cell(v.reduce((a,b)=>a+b,0))}</tr>`; };
-    const left = MON.reduce((s,_,i)=>s+month(mk(i)).left,0);
-    body = line('Income', m=>m.income) + line('Savings', m=>m.savings) + line('Fixed', m=>m.fixed) + line('Variable', m=>m.variable)
-      + line('Left', m=>m.left, 'tot')
+    const vals = key => MON.map((_,i)=>month(mk(i))[key]);
+    const left = vals('left').reduce((a,b)=>a+b,0);
+    body = GROUPS.map(x => row(x.name, vals(x.id), gb?.[x.id] ?? null, isInverse(x.id))).join('')
+      + row('Left', vals('left'), gb?.left ?? null, true, 'left')
       + `<tr><td>Projects</td>${MON.map(()=>'<td class="z"></td>').join('')}${cell(proj)}</tr>`
-      + `<tr class="tot"><td>Left after projects</td>${MON.map(()=>'<td></td>').join('')}${cell(left-proj)}</tr>`;
+      + `<tr class="left"><td>Left after projects</td>${MON.map(()=>'<td></td>').join('')}${cell(left-proj)}</tr>`;
   } else {
-    const rows = pivot(y, g); const tot = Array(12).fill(0);
-    body = rows.map(([c, v]) => { v.forEach((x,i)=>tot[i]+=x); return `<tr><td title="${esc(c)}">${esc(c)}</td>${v.map((x,i)=>cell(x,'c" data-act="cell" data-c="'+esc(c)+'" data-m="'+mk(i))).join('')}${cell(v.reduce((a,b)=>a+b,0))}</tr>`; }).join('')
-      + `<tr class="tot"><td>Total</td>${tot.map(x=>cell(x)).join('')}${cell(tot.reduce((a,b)=>a+b,0))}</tr>`;
+    const rows = pivot(y, g), tot = Array(12).fill(0), inv = isInverse(g);
+    body = rows.map(([c, v]) => { v.forEach((x,i)=>tot[i]+=x); return row(c, v, B ? (+B.lines[c] || 0) : null, inv, '', i => `c" data-act="cell" data-c="${esc(c)}" data-m="${mk(i)}`); }).join('')
+      + row('Total', tot, gb?.[g] ?? null, inv, 'left');
   }
   return `<div class="page wide"><div class="top"><h1>Year</h1>
       <select class="sel" data-act="year">${years.map(v=>`<option ${v===y?'selected':''}>${v}</option>`).join('')}</select><span class="sp"></span>
@@ -156,7 +183,8 @@ export function vTrends(){
   const ppl = S.people.map(p => [p, S.txns.filter(t=>t.p===p && counts(t) && t.d.startsWith(String(y))).reduce((s,t)=>s+t.a,0)]).filter(x=>x[1]>0);
   const catsV = S.cats.filter(c=>c.group==='variable'||c.group==='fixed').map(c=>c.name).sort();
   const series = []; for (let i=23;i>=0;i--){ const k = addYm(ym(TODAY), -i); if (agg()[k] || series.length) series.push([k, month(k).cats[UI.trendCat]||0]); }
-  CH = {cur, prev, y, py, series};
+  const catBud = lockedBudget(y) ? (+lockedBudget(y).lines[UI.trendCat] || 0) : null;
+  CH = {cur, prev, y, py, series, catBud};
   return `<div class="page wide"><div class="top"><h1>Trends</h1></div>
     <div class="grid2" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
       <div class="stat"><div class="l">Spent ${wl} ${y}</div><div class="n">${money(sp,false)}</div></div>
@@ -167,7 +195,7 @@ export function vTrends(){
     <div class="card"><h3>Spending by month<span class="sp"></span><span class="legend"><span><i style="background:var(--accent)"></i>${y}</span><span><i style="background:var(--prev)"></i>${py}</span></span></h3>
       <svg class="chart" id="c1" height="230"></svg><div class="tip" id="t1"></div></div>
     <div class="card"><h3><select class="sel" data-act="trendCat">${catsV.map(c=>`<option ${c===UI.trendCat?'selected':''}>${esc(c)}</option>`).join('')}</select><span class="sp"></span>
-      <span class="legend">${money(series.slice(-12).reduce((s,x)=>s+x[1],0)/12,false)} / mo</span></h3>
+      <span class="legend">${catBud!=null?`<span><i class="dash"></i>Budget ${money(catBud,false)}</span>`:''}<span>Avg ${money(series.slice(-12).reduce((s,x)=>s+x[1],0)/Math.min(12, series.length||1),false)}</span><span>/ mo</span></span></h3>
       <svg class="chart" id="c2" height="190"></svg><div class="tip" id="t2"></div></div>
     <div class="grid2" style="margin-top:12px">
       <div class="card" style="margin:0"><h3>Biggest changes<span class="sp"></span><span class="legend">${wl} vs ${py}</span></h3>
@@ -182,7 +210,7 @@ export function wireCharts(){
   const c1 = document.getElementById('c1'); if (!c1) return;
   lineChart(c1, document.getElementById('t1'), [
     {name:String(CH.y), color:'var(--accent)', v:CH.cur}, {name:String(CH.py), color:'var(--prev)', v:CH.prev}], MON);
-  barChart(document.getElementById('c2'), document.getElementById('t2'), CH.series, k => { UI.q = `"${UI.trendCat}" ${k}`; go('ledger'); });
+  barChart(document.getElementById('c2'), document.getElementById('t2'), CH.series, k => { UI.q = `"${UI.trendCat}" ${k}`; go('ledger'); }, CH.catBud);
 }
 /* ---------- Knauf ---------- */
 export function vKnauf(){
@@ -251,4 +279,49 @@ export function vGate(){
        ${UI.authError ? `<p class="err">${esc(UI.authError)}</p>` : ''}
        <button class="btn ghost" data-act="sample">Look around</button>`;
   return `<div class="gate"><div class="brand"><i></i>Household</div>${inner}</div>`;
+}
+
+const TREND = { up: ['↗', 'Growing'], down: ['↘', 'Shrinking'], flat: ['→', 'Steady'], spike: ['↯', 'One-off spike'], none: ['', ''] };
+function spark(vals, t){
+  const v = vals.slice(-24); if (!v.length || v.every(x=>!x)) return '';
+  const W = 72, H = 18, max = Math.max(...v, 1), min = Math.min(...v, 0);
+  const pts = v.map((x,i) => [(i/(Math.max(v.length-1,1)))*W, H - 2 - ((x-min)/(max-min||1))*(H-4)]);
+  const peak = t==='spike' ? pts[v.indexOf(Math.max(...v))] : null;
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}"><polyline points="${pts.map(p=>p.map(n=>n.toFixed(1)).join(',')).join(' ')}"/>${peak?`<circle cx="${peak[0]}" cy="${peak[1]}" r="2.2" class="pk"/>`:''}<circle cx="${pts.at(-1)[0]}" cy="${pts.at(-1)[1]}" r="1.8"/></svg>`;
+}
+export function vBudget(){
+  const y = UI.budgetYear, base = y - 1, cy = +TODAY.slice(0,4);
+  const locked = lockedBudget(y), draft = S.budgetDrafts?.[y], editing = !locked || !!draft;
+  const lines = workingLines(y), revs = revisions(y);
+  const years = [...new Set([cy, cy+1, ...(S.budgets||[]).map(b=>b.year)])].sort();
+  const state = !locked ? 'Draft' : draft ? `Revising rev ${locked.rev}` : `Locked · rev ${locked.rev}`;
+  const actions = !locked ? `<button class="btn pri" data-act="budgetLock">Lock ${y} budget</button>`
+    : !draft ? `<button class="btn" data-act="budgetRevise">Revise</button>`
+    : `<input class="reason" data-act="budgetReason" placeholder="Reason for change" value="${esc(UI.budgetReason)}"><button class="btn ghost" data-act="budgetDiscard">Cancel</button><button class="btn pri" data-act="budgetSaveRev" ${UI.budgetReason.trim()?'':'disabled'}>Save revision</button>`;
+  const row = (c) => {
+    const s = series(c).map(x=>x[1]), t = trend(s), rr = runRate(c, base), sug = suggestBudget(c, y), b = lines[c];
+    const changed = locked && draft && Math.abs((+locked.lines[c]||0) - b) > 0.005;
+    return `<tr><td title="${esc(c)}">${esc(c)}</td><td class="num">${rr==null?'–':fmt(rr,false)}</td>
+      <td class="tr" title="${TREND[t][1]}">${spark(s, t)}<span class="tg tg-${t}">${TREND[t][0]}</span></td>
+      <td class="num dim">${fmt(sug,false)}</td>
+      <td class="num ${changed?'chg':''}">${editing ? `<input class="cellin" data-act="budgetSet" data-c="${esc(c)}" value="${Math.round(b)}" inputmode="decimal">` : fmt(b,false)}</td>
+      <td class="num">${fmt(b*12,false)}</td></tr>`;
+  };
+  const sum = (names, f) => names.reduce((a,c)=>a+(f(c)||0),0);
+  const body = GROUPS.map(g => {
+    const names = S.cats.filter(c=>c.group===g.id).map(c=>c.name);
+    const bt = sum(names, c=>lines[c]);
+    return `<tr class="grp"><td>${g.name}</td><td class="num">${fmt(sum(names, c=>runRate(c, base)),false)}</td><td></td><td class="num dim">${fmt(sum(names, c=>suggestBudget(c,y)),false)}</td><td class="num">${fmt(bt,false)}</td><td class="num">${fmt(bt*12,false)}</td></tr>`
+      + names.map(row).join('');
+  }).join('');
+  const gl = groupBudgets(lines);
+  const changes = (r, prev) => !prev ? '' : Object.keys({...r.lines, ...prev.lines}).filter(c => Math.abs((+r.lines[c]||0)-(+prev.lines[c]||0))>0.005)
+    .map(c => `${c} ${fmt(+prev.lines[c]||0,false)} → ${fmt(+r.lines[c]||0,false)}`).join(' · ');
+  return `<div class="page wide"><div class="top"><h1>Budget</h1>
+      <div class="seg">${years.map(v=>`<button class="${v===y?'on':''}" data-act="budgetYear" data-y="${v}">${v}</button>`).join('')}</div>
+      <span class="pill">${state}</span><span class="sp"></span>${actions}</div>
+    <div class="tbl"><table class="bt"><thead><tr><th></th><th>${base} run rate</th><th class="tr">Trend</th><th>Suggested</th><th>Budget / mo</th><th>Annual</th></tr></thead>
+      <tbody>${body}<tr class="left"><td>Left</td><td></td><td></td><td></td><td class="num">${fmt(gl.left,false)}</td><td class="num">${fmt(gl.left*12,false)}</td></tr></tbody></table></div>
+    ${revs.length ? `<div class="sec"><h2>Revisions</h2>${revs.map((r,i)=>`<div class="row"><span class="name">Rev ${r.rev} · ${esc(r.reason)}</span><span class="sub">${esc(changes(r, revs[i+1]))}</span><span class="sub">${new Date(r.at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}${r.by?' · '+esc(r.by.split('@')[0]):''}</span></div>`).join('')}</div>` : ''}
+  </div>`;
 }

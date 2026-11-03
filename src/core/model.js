@@ -157,8 +157,25 @@ export const COMMANDS = {
   'rule.delete':   {title:'Delete rule', run:({m}) => { S.rules = S.rules.filter(r=>r.m!==m); }},
   'account.rename':{title:'Rename account', run:({id, name}) => { S.accounts.find(a=>a.id===id).name = name; }},
   'data.reset':    {title:'Reset to sample data', run:() => { if (!S.demo) throw new Error('Reset only applies to sample data'); setState(seed()); }},
+  'budget.set':    {title:'Set a budget line (draft)', run:({year, c, a}) => {
+      const locked = (S.budgets||[]).some(b => b.year===year);
+      if (locked && !S.budgetDrafts?.[year]) throw new Error('Budget is locked; revise it first');
+      S.budgetDrafts ||= {}; (S.budgetDrafts[year] ||= {lines:{}}).lines[c] = Math.max(0, +a || 0);
+  }},
+  'budget.lock':   {title:'Lock the budget (or save a revision)', run:({year, lines, reason, by}) => {
+      const rev = Math.max(0, ...(S.budgets||[]).filter(b => b.year===year).map(b => b.rev)) + 1;
+      if (rev > 1 && !String(reason||'').trim()) throw new Error('A revision needs a reason');
+      (S.budgets ||= []).push({year, rev, lines:{...lines}, reason: rev===1 ? (reason||'Initial budget') : reason.trim(), by: by||'', at: new Date().toISOString()});
+      if (S.budgetDrafts) delete S.budgetDrafts[year];
+  }},
+  'budget.revise': {title:'Start a budget revision', run:({year}) => {
+      const cur = (S.budgets||[]).filter(b => b.year===year).sort((a,b) => b.rev-a.rev)[0];
+      if (!cur) throw new Error('Nothing locked to revise');
+      S.budgetDrafts ||= {}; S.budgetDrafts[year] = {lines:{...cur.lines}};
+  }},
+  'budget.discard':{title:'Discard budget changes', run:({year}) => { if (S.budgetDrafts) delete S.budgetDrafts[year]; }},
   'data.import':   {title:'Replace all data with an import file', run:(data) => {
-      const keep = {household:S.household, people:S.people};
+      const keep = {household:S.household, people:S.people, budgets:S.budgets||[], budgetDrafts:S.budgetDrafts||{}};
       setState({v:1, cats:data.cats, txns:data.txns, projects:data.projects||[], accounts:data.accounts||[], rules:data.rules||[], ...keep, people:data.people||keep.people});
   }},
 };

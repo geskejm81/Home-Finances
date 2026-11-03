@@ -6,8 +6,9 @@ import { COMMANDS, inbox, knaufSummary, month, netOf, onChange, pivot, projectTo
 import { UI, VIEWS } from './state.js';
 import { auth, api } from '../data/supabase.js';
 import { createSync } from '../data/sync.js';
+import { workingLines } from '../core/budget.js';
 import { connectBank, syncBanks } from '../data/bank.js';
-import { ledgerBody, ledgerTotal, txRow, vGate, vInbox, vKnauf, vLedger, vMonth, vProjects, vSettings, vTrends, vYear, wireCharts } from './views.js';
+import { ledgerBody, ledgerTotal, txRow, vGate, vInbox, vKnauf, vLedger, vMonth, vProjects, vSettings, vTrends, vYear, vBudget, wireCharts } from './views.js';
 import { ic } from './icons.js';
 
 export function go(view, opts={}){
@@ -27,7 +28,7 @@ export function render(){
   renderSide(); renderTabs();
   const main = document.getElementById('main');
   const keepSearch = UI.view==='ledger' && document.activeElement && document.activeElement.id==='q';
-  const fn = {inbox:vInbox, month:vMonth, year:vYear, ledger:vLedger, trends:vTrends, knauf:vKnauf, projects:vProjects, settings:vSettings}[UI.view];
+  const fn = {inbox:vInbox, month:vMonth, year:vYear, ledger:vLedger, trends:vTrends, budget:vBudget, knauf:vKnauf, projects:vProjects, settings:vSettings}[UI.view];
   if (keepSearch){ document.getElementById('ledgerBody').innerHTML = ledgerBody(); document.getElementById('qtot').innerHTML = ledgerTotal(); }
   else main.innerHTML = fn();
   if (UI.view==='trends') wireCharts();
@@ -47,11 +48,11 @@ export function renderSide(){
 export function renderTabs(){
   const n = inbox().length;
   const tab = (id, icon, name, badge) => `<button class="${UI.view===id?'on':''}" data-go="${id}">${ic(icon)}${name}${badge?`<span class="badge">${badge}</span>`:''}</button>`;
-  const inMore = ['year','trends','projects','settings'].includes(UI.view);
+  const inMore = ['year','trends','budget','projects','settings'].includes(UI.view);
   document.getElementById('tabs').innerHTML = tab('inbox','inbox','Inbox',n) + tab('month','month','Month') + tab('ledger','ledger','Ledger') + tab('knauf','knauf','Knauf') +
     `<button class="${inMore||UI.more?'on':''}" data-act="more">${ic('more')}More</button>`;
   document.getElementById('more').className = 'more' + (UI.more?' on':'');
-  document.getElementById('more').innerHTML = ['year','trends','projects'].map(id => { const v=VIEWS.find(x=>x.id===id); return `<button class="nav" data-go="${id}">${ic(v.icon)}${v.name}</button>`; }).join('') +
+  document.getElementById('more').innerHTML = ['year','trends','budget','projects'].map(id => { const v=VIEWS.find(x=>x.id===id); return `<button class="nav" data-go="${id}">${ic(v.icon)}${v.name}</button>`; }).join('') +
     `<button class="nav" data-go="settings">${ic('settings')}Settings</button>`;
 }
 
@@ -284,6 +285,15 @@ export const ACT = {
     finally { UI.bankBusy = false; render(); }
   },
   relinkBank: async a => { try { const r = await connectBank(a.dataset.id); if (r){ await reloadLive(); toast(bankSummary(r) || 'Reconnected'); } } catch(e){ toast(e.message); } },
+  budgetYear: a => { UI.budgetYear = +a.dataset.y; UI.budgetReason=''; render(); },
+  budgetLock: () => { const y = UI.budgetYear; run('budget.lock', {year:y, lines:workingLines(y), by:UI.email}); toast(`${y} budget locked`, true); },
+  budgetRevise: () => { UI.budgetReason=''; run('budget.revise', {year:UI.budgetYear}); },
+  budgetDiscard: () => { UI.budgetReason=''; run('budget.discard', {year:UI.budgetYear}); },
+  budgetSaveRev: () => {
+    const y = UI.budgetYear, reason = UI.budgetReason.trim(); if (!reason) return;
+    try { run('budget.lock', {year:y, lines:workingLines(y), reason, by:UI.email}); UI.budgetReason=''; render(); toast(`Revision saved`, true); }
+    catch(e){ toast(e.message); }
+  },
   importCancel: () => { UI.importDraft=null; render(); },
   importApply: () => { const d = UI.importDraft; UI.importDraft=null; run('data.import', d); toast(`Imported ${d.txns.length.toLocaleString()} transactions`, true); },
   // the following fire from change events
@@ -300,6 +310,7 @@ document.addEventListener('change', e => {
   else if (act==='catMove'){ run('cat.move', {name:a.dataset.c, group:v}); }
   else if (act==='acctRename'){ if (v.trim()) run('account.rename', {id:a.dataset.id, name:v.trim()}); }
   else if (act==='projEdit'){ const f=a.dataset.f; run('project.update', {id:UI.sel.slice(1), [f]: f==='a'||f==='year' ? +v || 0 : v}); }
+  else if (act==='budgetSet'){ const n = parseFloat(v.replace(/[^0-9.]/g,'')); try { run('budget.set', {year:UI.budgetYear, c:a.dataset.c, a: isNaN(n) ? 0 : n}); } catch(err){ toast(err.message); render(); } }
   else if (act==='importFile'){
     const file = e.target.files?.[0]; if (!file) return;
     file.text().then(txt => {
@@ -312,6 +323,7 @@ document.addEventListener('change', e => {
 });
 document.addEventListener('input', e => {
   if (e.target.id==='q'){ UI.q = e.target.value; UI.limit = 150; render(); }
+  if (e.target.dataset?.act==='budgetReason'){ UI.budgetReason = e.target.value; const b = document.querySelector('[data-act="budgetSaveRev"]'); if (b) b.disabled = !UI.budgetReason.trim(); }
 });
 document.addEventListener('submit', async e => {
   e.preventDefault(); const f = e.target, kind = f.dataset.form;

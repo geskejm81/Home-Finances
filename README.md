@@ -21,6 +21,7 @@ styles.css            all styles; light and dark from the same tokens
 src/core/format.js    pure helpers: money, dates, merchant clean-up
 src/core/store.js     the state object S, load/save
 src/core/model.js     selectors, suggestions, commands, run(), undo()
+src/core/budget.js    run rates, trends, suggested budgets, budget status colors
 src/core/demo.js      invented sample household (no real data in this repo)
 src/data/supabase.js  magic-link sign-in and REST calls (plain fetch)
 src/data/sync.js      load on sign-in; save only changed rows
@@ -49,6 +50,13 @@ Supabase project `Household` (`ctzndfvfehdgwppofiru`). Tables: `households`, `me
 - The key in `src/data/supabase.js` is the publishable key. It is meant to be public; security comes from the policies above.
 - Sync: `sync.load()` reads everything once; after each command, `sync.push()` diffs against what the database last confirmed and upserts or deletes only those rows.
 - Import: Settings → Import takes a `household-import` JSON file and replaces all data.
+
+## Budgets
+
+- Budget tab: one budget per year, monthly amounts per category. Suggested amounts come from history (`suggestBudget` in `budget.js`); any cell can be overwritten.
+- Lock makes revision 1. Changes after that go through Revise and need a reason; each save adds a new revision. The `budgets` table only allows inserts, so locked revisions can't be edited or deleted.
+- Every screen uses the latest locked revision for that year. Without one, Month compares to typical spend (trailing 6 months) and labels the column "Typical".
+- Colors: spending under 80% of budget is green, 80–100% yellow, over 100% red. Income, savings, and Left are the reverse (at or above budget green, 80–100% yellow, below 80% red).
 
 ## Banks
 

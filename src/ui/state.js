@@ -8,6 +8,7 @@ export const VIEWS = [
   {id:'year', name:'Year', icon:'year', key:'y'},
   {id:'ledger', name:'Ledger', icon:'ledger', key:'l'},
   {id:'trends', name:'Trends', icon:'trends', key:'t'},
+  {id:'budget', name:'Budget', icon:'budget', key:'b'},
   {id:'knauf', name:'Knauf', icon:'knauf', key:'k'},
   {id:'projects', name:'Projects', icon:'projects', key:'p'},
 ];
@@ -20,5 +21,6 @@ export const UI = {
   kSel: new Set(), showReimbursed: false,
   projYear: +TODAY.slice(0,4),
   splitDraft: null, more: false,
+  budgetYear: +TODAY.slice(5,7) >= 10 ? +TODAY.slice(0,4) + 1 : +TODAY.slice(0,4), budgetReason: '',
   mode: 'loading', email: '', sent: null, authError: null, saving: null, importDraft: null, bankBusy: false,
 };
