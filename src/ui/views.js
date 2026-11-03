@@ -22,8 +22,8 @@ export function amtCell(t){
 export function txRow(t, extra=''){
   const ret = t.ret ? `<span class="pill">${ic('ret')}${shortDate(txById(t.ret)?.d||t.d)}</span>` : '';
   const who = t.p ? `<span class="pill hide-m">${esc(t.p)}</span>` : '';
-  return `<div class="row click ${UI.sel===t.id?'sel':''} ${t.s?'muted':''}" data-tx="${t.id}">
-    ${t.s ? `<span class="dot hollow" title="Scheduled"></span>` : ''}
+  return `<div class="row click ${UI.sel===t.id?'sel':''} ${t.d>TODAY?'muted':''}" data-tx="${t.id}">
+    ${t.d>TODAY ? `<span class="dot hollow" title="Scheduled"></span>` : ''}
     <span class="name">${esc(label(t))}</span>${ret}${who}
     <span class="sub">${esc(t.m && t.n ? t.n : (catLabel(t)!==label(t) ? catLabel(t) : ''))}</span>
     ${amtCell(t)}${extra}</div>`;
@@ -228,6 +228,25 @@ export function vSettings(){
       <form class="inl" data-form="cat" data-g="${g.id}"><input name="name" placeholder="New category" autocomplete="off"></form></div>`).join('')}
     <div class="sec"><h2>Rules</h2>${S.rules.map(r=>`<div class="row"><span class="name">${esc(r.m)}</span><span class="sub">${r.x?'Excluded':r.k?'Knauf':esc(r.c)}</span><button class="icon" data-act="ruleDel" data-m="${esc(r.m)}">${ic('close')}</button></div>`).join('')}</div>
     <div class="sec"><h2>Accounts</h2>${S.accounts.map(a=>`<div class="row"><input class="name" value="${esc(a.name)}" data-act="acctRename" data-id="${a.id}"></div>`).join('')}</div>
-    <div class="sec"><h2>Data</h2><div class="row"><span class="name">Reset to spreadsheet</span><button class="btn" data-act="reset">Reset</button></div></div>
+    <div class="sec"><h2>Data</h2>
+      ${UI.importDraft ? `<div class="row"><span class="name">${UI.importDraft.txns.length.toLocaleString()} transactions · ${UI.importDraft.cats.length} categories</span><button class="btn ghost" data-act="importCancel">Cancel</button><button class="btn pri" data-act="importApply">Replace all</button></div>`
+        : `<label class="row click"><span class="name">Import</span><input type="file" accept=".json,application/json" data-act="importFile" hidden><span class="sub">${ic('plus')}</span></label>`}
+      ${S.demo ? `<div class="row"><span class="name">Sample data</span><button class="btn" data-act="reset">Reset</button></div>` : ''}
+    </div>
+    <div class="sec"><h2>Account</h2>
+      ${UI.mode==='live' ? `<div class="row"><span class="name">${esc(UI.email)}</span><button class="btn" data-act="signOut">Sign out</button></div>`
+        : `<div class="row"><span class="name">Signed out</span><button class="btn pri" data-act="leaveSample">Sign in</button></div>`}
+    </div>
   </div>`;
+}
+
+/** Sign-in, loading, and no-household screens. */
+export function vGate(){
+  const inner = UI.mode==='loading' ? ''
+    : UI.mode==='nohousehold' ? `<h1>No household for ${esc(UI.email)}</h1><button class="btn" data-act="signOut">Sign out</button>`
+    : UI.sent ? `<h1>Check your email</h1><p>${esc(UI.sent)}</p><button class="btn ghost" data-act="resend">Use another email</button>`
+    : `<form data-form="signin"><input type="email" name="email" placeholder="Email" autocomplete="email" required autofocus><button class="btn pri">Send link</button></form>
+       ${UI.authError ? `<p class="err">${esc(UI.authError)}</p>` : ''}
+       <button class="btn ghost" data-act="sample">Look around</button>`;
+  return `<div class="gate"><div class="brand"><i></i>Household</div>${inner}</div>`;
 }

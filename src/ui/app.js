@@ -4,7 +4,9 @@ import { GROUPS, TODAY, addYm, dObj, esc, fmt, money, norm, shortDate, ym } from
 import { S, acctName, catGroup, label, load, seed, setState, txById } from '../core/store.js';
 import { COMMANDS, inbox, knaufSummary, month, netOf, onChange, pivot, projectTotal, returnsOf, run, searchTx, suggest, typical, undo } from '../core/model.js';
 import { UI, VIEWS } from './state.js';
-import { ledgerBody, ledgerTotal, txRow, vInbox, vKnauf, vLedger, vMonth, vProjects, vSettings, vTrends, vYear, wireCharts } from './views.js';
+import { auth, api } from '../data/supabase.js';
+import { createSync } from '../data/sync.js';
+import { ledgerBody, ledgerTotal, txRow, vGate, vInbox, vKnauf, vLedger, vMonth, vProjects, vSettings, vTrends, vYear, wireCharts } from './views.js';
 import { ic } from './icons.js';
 
 export function go(view, opts={}){
@@ -12,12 +14,15 @@ export function go(view, opts={}){
   try { if (location.hash !== '#'+view) history.replaceState(null,'','#'+view); } catch(e){}
   closePanel(false); render(); document.getElementById('main').scrollTop = 0;
 }
-window.addEventListener('hashchange', () => { const v = location.hash.slice(1); if (VIEWS.some(x=>x.id===v) || v==='settings') go(v); });
+window.addEventListener('hashchange', () => { if (/access_token=|error=/.test(location.hash)) { boot(); return; } const v = location.hash.slice(1); if (VIEWS.some(x=>x.id===v) || v==='settings') go(v); });
 
 /* ============================================================
    RENDER
    ============================================================ */
 export function render(){
+  const gated = !['live','sample'].includes(UI.mode);
+  document.body.classList.toggle('gated', gated);
+  if (gated){ document.getElementById('main').innerHTML = vGate(); return; }
   renderSide(); renderTabs();
   const main = document.getElementById('main');
   const keepSearch = UI.view==='ledger' && document.activeElement && document.activeElement.id==='q';
@@ -266,6 +271,12 @@ export const ACT = {
   projDel: () => { const id = UI.sel.slice(1); run('project.delete', {id}); closePanel(); toast('Project deleted', true); },
   ruleDel: a => run('rule.delete', {m:a.dataset.m}),
   reset: () => { run('data.reset'); toast('Reset', true); },
+  sample: () => { try { localStorage.setItem(SAMPLE_KEY, '1'); } catch(e){} setState(load() || seed()); UI.mode='sample'; go('inbox'); },
+  leaveSample: () => { try { localStorage.removeItem(SAMPLE_KEY); } catch(e){} UI.mode='signin'; UI.sent=null; render(); },
+  resend: () => { UI.sent=null; render(); },
+  signOut: async () => { await auth.signOut(); try { localStorage.removeItem(SAMPLE_KEY); } catch(e){} location.hash=''; location.reload(); },
+  importCancel: () => { UI.importDraft=null; render(); },
+  importApply: () => { const d = UI.importDraft; UI.importDraft=null; run('data.import', d); toast(`Imported ${d.txns.length.toLocaleString()} transactions`, true); },
   // the following fire from change events
 };
 document.addEventListener('change', e => {
@@ -280,13 +291,28 @@ document.addEventListener('change', e => {
   else if (act==='catMove'){ run('cat.move', {name:a.dataset.c, group:v}); }
   else if (act==='acctRename'){ if (v.trim()) run('account.rename', {id:a.dataset.id, name:v.trim()}); }
   else if (act==='projEdit'){ const f=a.dataset.f; run('project.update', {id:UI.sel.slice(1), [f]: f==='a'||f==='year' ? +v || 0 : v}); }
+  else if (act==='importFile'){
+    const file = e.target.files?.[0]; if (!file) return;
+    file.text().then(txt => {
+      let d; try { d = JSON.parse(txt); } catch(err){ toast('Not a valid import file'); return; }
+      if (d.kind!=='household-import' || !Array.isArray(d.txns) || !Array.isArray(d.cats)){ toast('Not a valid import file'); return; }
+      UI.importDraft = d; render();
+    });
+  }
   else if (act==='splitAmt'){ UI.splitDraft[+a.dataset.i].a = v; renderPanel(); }
 });
 document.addEventListener('input', e => {
   if (e.target.id==='q'){ UI.q = e.target.value; UI.limit = 150; render(); }
 });
-document.addEventListener('submit', e => {
+document.addEventListener('submit', async e => {
   e.preventDefault(); const f = e.target, kind = f.dataset.form;
+  if (kind==='signin'){
+    const email = f.email.value.trim(); if (!email) return;
+    const b = f.querySelector('button'); b.disabled = true;
+    try { await auth.sendLink(email, location.origin + location.pathname); UI.sent = email; UI.authError = null; }
+    catch(err){ UI.authError = err.message; }
+    render(); return;
+  }
   if (kind==='proj'){ const name=f.name.value.trim(); if (!name) return; run('project.create', {name, year:UI.projYear, a: parseFloat(f.a.value)||0}); }
   if (kind==='cat'){ const name=f.name.value.trim(); if (!name) return; run('cat.create', {name, group:f.dataset.g}); }
 });
@@ -327,16 +353,37 @@ document.addEventListener('keydown', e => {
 });
 
 /* boot */
-setState(load() || seed());
-(function(){ const v = location.hash.slice(1); if (VIEWS.some(x=>x.id===v) || v==='settings') UI.view = v; })();
-onChange(render);
-render();
+const SAMPLE_KEY = 'household.sample';
+const sync = createSync(api, { onStatus: (s, err) => {
+  UI.saving = s;
+  if (s==='error'){ toast("Couldn't save. Retrying…"); setTimeout(() => sync.push(() => S, 0), 15000); console.error(err); }
+}});
+window.addEventListener('beforeunload', e => { if (UI.saving==='saving') e.preventDefault(); });
+onChange(() => { render(); if (UI.mode==='live') sync.push(() => S); });
+
+async function boot(){
+  const link = auth.fromUrl(location.hash);
+  if (link && link!=='signed-in') UI.authError = link;
+  if (link) history.replaceState(null, '', location.pathname + '#inbox');
+  const v = location.hash.slice(1); if (VIEWS.some(x=>x.id===v) || v==='settings') UI.view = v;
+  let sample = false; try { sample = localStorage.getItem(SAMPLE_KEY)==='1'; } catch(e){}
+  if (auth.session){
+    UI.mode = 'loading'; UI.email = auth.email; render();
+    try {
+      const state = await sync.load();
+      if (state){ setState(state); UI.mode = 'live'; } else UI.mode = 'nohousehold';
+    } catch(e){ UI.mode = 'signin'; UI.authError = e.message; }
+  } else if (sample){ setState(load() || seed()); UI.mode = 'sample'; }
+  else UI.mode = 'signin';
+  render();
+}
+boot();
 window.addEventListener('resize', () => { if (UI.view==='trends') wireCharts(); });
 
 /* Agent / console surface: same commands, same selectors. */
 window.household = {
   get state(){ return S; },
   commands: Object.fromEntries(Object.entries(COMMANDS).map(([k,v])=>[k,v.title])),
-  run, undo: doUndo,
+  run, undo: doUndo, sync,
   query: { month, typical, knaufSummary, suggest, inbox, netOf, projectTotal, pivot, search: searchTx },
 };

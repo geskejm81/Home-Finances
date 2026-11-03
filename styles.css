@@ -191,6 +191,19 @@ select.sel option{background:var(--surface);color:var(--text)}
 .inl input{flex:1;height:30px;border-bottom:1px solid var(--line2)}
 .inl input.n{flex:none;width:110px;text-align:right}
 .tabs{display:none}
+body.gated .app{grid-template-columns:1fr}
+body.gated .side,body.gated .tabs{display:none!important}
+.gate{max-width:340px;margin:18vh auto 0;padding:0 20px;display:flex;flex-direction:column;gap:14px}
+.gate .brand{padding:0 0 10px;font-size:17px}
+.gate .brand i{width:22px;height:22px;border-radius:6px}
+.gate h1{font-size:20px;font-weight:600;letter-spacing:-.01em}
+.gate p{color:var(--text2)}
+.gate p.err{color:var(--neg)}
+.gate form{display:flex;flex-direction:column;gap:10px}
+.gate input{height:40px;padding:0 12px;border:1px solid var(--line2);border-radius:8px;background:var(--surface)}
+.gate input:focus{border-color:var(--accent)}
+.gate .btn{height:38px;justify-content:center}
+.gate .btn.ghost{align-self:center}
 .more{display:none}
 @media (max-width:760px){
   body{font-size:15px}

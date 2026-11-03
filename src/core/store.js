@@ -11,7 +11,8 @@ export function load(){
   try { const s = JSON.parse(globalThis.localStorage?.getItem(KEY)); if (s && s.v===1) return s; } catch(e){}
   return null;
 }
-export function save(){ try { globalThis.localStorage?.setItem(KEY, JSON.stringify(S)); } catch(e){} }
+// Only sample data is kept in the browser; real data lives in the database.
+export function save(){ if (!S.demo) return; try { globalThis.localStorage?.setItem(KEY, JSON.stringify(S)); } catch(e){} }
 
 // lookups
 export const catGroup = () => Object.fromEntries(S.cats.map(c => [c.name, c.group]));

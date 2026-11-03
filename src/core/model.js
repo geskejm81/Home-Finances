@@ -104,6 +104,9 @@ export function suggest(t){
    COMMANDS — the single write path (UI, keyboard, palette, agents)
    ============================================================ */
 export const undoStack = [];
+/** Ids are unique across devices without a round trip: microsecond-ish clock plus jitter. */
+let _lastId = 0;
+export function newId(){ _lastId = Math.max(_lastId + 1, Date.now()*1000 + Math.floor(Math.random()*1000)); return _lastId; }
 export const COMMANDS = {
   'tx.accept':     {title:'Accept suggestion', key:'Enter', run:({id}) => accept(id)},
   'tx.acceptAll':  {title:'Accept all suggestions', run:() => { let n=0; for (const t of inbox()) { const s=suggest(t); if (s.type!=='none'){ accept(t.id); n++; } } return n; }},
@@ -133,11 +136,11 @@ export const COMMANDS = {
   }},
   'tx.update':     {title:'Edit transaction', run:({id, ...f}) => { const t = txById(id); for (const k in f){ if (f[k]===''||f[k]==null) delete t[k]; else t[k]=f[k]; } }},
   'tx.setProject': {title:'Move to project', key:'P', run:({id, proj}) => { const t = txById(id); if (proj) { t.proj=proj; delete t.inbox; } else delete t.proj; }},
-  'tx.create':     {title:'New transaction', key:'N', run:(f) => { const t = {id:S.nextId++, d:TODAY, a:0, src:'manual', ...f}; S.txns.push(t); return t.id; }},
+  'tx.create':     {title:'New transaction', key:'N', run:(f) => { const t = {id:newId(), d:TODAY, a:0, src:'manual', ...f}; S.txns.push(t); return t.id; }},
   'tx.delete':     {title:'Delete transaction', run:({id}) => { S.txns = S.txns.filter(t=>t.id!==id); S.txns.forEach(t=>{ if (t.ret===id) delete t.ret; }); }},
   'knauf.submit':  {title:'Mark Knauf items submitted', run:({ids}) => { for (const id of ids){ const t=txById(id); t.k='submitted'; t.ks=TODAY; } }},
   'knauf.reimburse':{title:'Mark Knauf items reimbursed', run:({ids, deposit}) => {
-      for (const id of ids){ const t=txById(id); t.k='reimbursed'; t.kr = deposit || TODAY; }
+      for (const id of ids){ const t=txById(id); t.k='reimbursed'; t.kr = TODAY; }
       if (deposit){ const d = txById(deposit); d.k='deposit'; d.kids = ids; delete d.inbox; }
   }},
   'knauf.reopen':  {title:'Move Knauf item back to open', run:({ids}) => { for (const id of ids){ const t=txById(id); t.k='open'; delete t.ks; delete t.kr; } }},
@@ -153,7 +156,11 @@ export const COMMANDS = {
   'cat.move':      {title:'Move category to group', run:({name, group}) => { S.cats.find(c=>c.name===name).group = group; }},
   'rule.delete':   {title:'Delete rule', run:({m}) => { S.rules = S.rules.filter(r=>r.m!==m); }},
   'account.rename':{title:'Rename account', run:({id, name}) => { S.accounts.find(a=>a.id===id).name = name; }},
-  'data.reset':    {title:'Reset to sample data', run:() => { setState(seed()); }},
+  'data.reset':    {title:'Reset to sample data', run:() => { if (!S.demo) throw new Error('Reset only applies to sample data'); setState(seed()); }},
+  'data.import':   {title:'Replace all data with an import file', run:(data) => {
+      const keep = {household:S.household, people:S.people};
+      setState({v:1, cats:data.cats, txns:data.txns, projects:data.projects||[], accounts:data.accounts||[], rules:data.rules||[], ...keep, people:data.people||keep.people});
+  }},
 };
 export function settleSign(t, c){
   // Bank feed: + is money out. Income categories store inflows as positive.
@@ -218,7 +225,7 @@ export function searchTx(q){
     else if (tok==='returns') list = list.filter(t=>!t.k && (t.ret || returnsOf(t.id).length || (t.a<0 && t.c && G[t.c]!=='income')));
     else if (tok==='excluded') list = list.filter(t=>t.x);
     else if (tok==='split') list = list.filter(t=>t.split);
-    else if (tok==='scheduled') list = list.filter(t=>t.s);
+    else if (tok==='scheduled') list = list.filter(t=>t.d>TODAY);
     else if ((m = tok.match(/^([<>])(\d+(?:\.\d+)?)$/))) list = list.filter(t => m[1]==='>' ? Math.abs(t.a)>+m[2] : Math.abs(t.a)<+m[2]);
     else if (/^\d{4}$/.test(tok)) list = list.filter(t=>t.d.startsWith(tok));
     else if (/^\d{4}-\d{2}$/.test(tok)) list = list.filter(t=>t.d.startsWith(tok));

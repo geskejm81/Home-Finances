@@ -76,7 +76,7 @@ export function demoState(today) {
     const y = m.getFullYear(), mo = m.getMonth(), dim = new Date(y, mo + 1, 0).getDate();
     const ago = monthsBetween(m, end);
     const day = d => iso(new Date(y, mo, Math.min(d, dim), 12));
-    const sched = d => (day(d) > today ? { s: 1 } : {});
+    const sched = () => ({}); // scheduled = dated after today; derived in the app
     const lastMonth = ago === 0;
     // pay, savings, bills (scheduled for the rest of the current month)
     const pay = ago <= 1 ? 6480.00 : 6215.50;
@@ -119,8 +119,6 @@ export function demoState(today) {
       }
     }
   }
-  // drop returns dated in the future
-  for (let i = txns.length - 1; i >= 0; i--) if (txns[i].d > today && !txns[i].s) txns.splice(i, 1);
 
   // a purchase a week ago to be returned from the inbox
   const wk = iso(addDays(end, -9));
@@ -146,7 +144,6 @@ export function demoState(today) {
   const y = end.getFullYear();
   return {
     v: 1,
-    nextId: id,
     demo: true,
     cats: Object.entries(CATS).flatMap(([group, names]) => names.map(name => ({ name, group }))),
     people: PEOPLE,

@@ -20,4 +20,5 @@ export const UI = {
   kSel: new Set(), showReimbursed: false,
   projYear: +TODAY.slice(0,4),
   splitDraft: null, more: false,
+  mode: 'loading', email: '', sent: null, authError: null, saving: null, importDraft: null,
 };

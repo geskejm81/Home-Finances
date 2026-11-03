@@ -22,6 +22,8 @@ src/core/format.js    pure helpers: money, dates, merchant clean-up
 src/core/store.js     the state object S, load/save
 src/core/model.js     selectors, suggestions, commands, run(), undo()
 src/core/demo.js      invented sample household (no real data in this repo)
+src/data/supabase.js  magic-link sign-in and REST calls (plain fetch)
+src/data/sync.js      load on sign-in; save only changed rows
 src/ui/state.js       view state (selection, filters)
 src/ui/views.js       one function per screen, state → HTML
 src/ui/app.js         routing, render, detail panel, palette, keyboard
@@ -34,7 +36,19 @@ tests/                node --test, core only
 - **One write path.** Every change is `run('command', args)`. The UI, keyboard, command palette, and agents all call the same commands. The list is `COMMANDS` in `model.js`.
 - **Totals are computed, never stored.** Views read selectors such as `month()`, `pivot()`, and `knaufSummary()`.
 - **`core/` never touches the DOM**, so it runs under `node --test`.
-- **No real financial data in the repo.** The repo and site are public. Real data will come from the database after sign-in.
+- **No real financial data in the repo.** The repo and site are public. Real data lives in Supabase and loads after sign-in.
+
+## Database
+
+Supabase project `Household` (`ctzndfvfehdgwppofiru`). Tables: `households`, `members`, `categories`, `accounts`, `rules`, `projects`, `transactions`.
+
+- Row-level security on every table: a signed-in user sees only rows of households they belong to (`private.my_households()`).
+- Joining: `rpc/join_household` adds the signed-in user to a household whose `invites` lists their email. To add someone, append their email to `households.invites`.
+- The key in `src/data/supabase.js` is the publishable key. It is meant to be public; security comes from the policies above.
+- Sync: `sync.load()` reads everything once; after each command, `sync.push()` diffs against what the database last confirmed and upserts or deletes only those rows.
+- Import: Settings → Import takes a `household-import` JSON file and replaces all data.
+
+Signed out, the app shows sign-in. "Look around" opens the sample household, which is stored only in the browser.
 
 ## Agents
 
