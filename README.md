@@ -24,6 +24,8 @@ src/core/model.js     selectors, suggestions, commands, run(), undo()
 src/core/demo.js      invented sample household (no real data in this repo)
 src/data/supabase.js  magic-link sign-in and REST calls (plain fetch)
 src/data/sync.js      load on sign-in; save only changed rows
+src/data/bank.js      Plaid Link (loaded on demand) and bank checks
+supabase/functions/plaid/   server side: Plaid keys, bank tokens, sync, November matching
 src/ui/state.js       view state (selection, filters)
 src/ui/views.js       one function per screen, state → HTML
 src/ui/app.js         routing, render, detail panel, palette, keyboard
@@ -47,6 +49,15 @@ Supabase project `Household` (`ctzndfvfehdgwppofiru`). Tables: `households`, `me
 - The key in `src/data/supabase.js` is the publishable key. It is meant to be public; security comes from the policies above.
 - Sync: `sync.load()` reads everything once; after each command, `sync.push()` diffs against what the database last confirmed and upserts or deletes only those rows.
 - Import: Settings → Import takes a `household-import` JSON file and replaces all data.
+
+## Banks
+
+The `plaid` function (Supabase Edge Function, `supabase/functions/plaid`) holds the Plaid keys (secrets `PLAID_CLIENT_ID`, `PLAID_SECRET`) and the bank tokens (`plaid_tokens`, unreadable by app users).
+
+- Settings → Accounts → Connect bank opens Plaid Link; the function exchanges the token, saves the accounts, and syncs.
+- The app checks banks each time it opens (and from ⌘K → Check banks).
+- Only posted transactions dated on or after `households.bank_start` (2026-11-01) are taken.
+- Each one is first matched to an unconfirmed spreadsheet row: same amount to the cent, same direction, within 4 days (`match.js`, covered by tests). A match fills in the merchant and account; anything else goes to the Inbox.
 
 Signed out, the app shows sign-in. "Look around" opens the sample household, which is stored only in the browser.
 

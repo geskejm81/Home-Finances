@@ -46,6 +46,7 @@ kbd{font:11px/1 var(--font);color:var(--text3);border:1px solid var(--line2);bor
 .btn:hover{background:var(--hover)}
 .btn.pri{background:var(--accent);border-color:var(--accent);color:#fff}
 .btn.pri:hover{filter:brightness(1.06)}
+.btn:disabled{opacity:.5;pointer-events:none}
 .btn.ghost{border-color:transparent;background:none;color:var(--text2)}
 .btn.ghost:hover{color:var(--text);background:var(--hover)}
 .btn svg{width:14px;height:14px}

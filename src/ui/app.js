@@ -6,6 +6,7 @@ import { COMMANDS, inbox, knaufSummary, month, netOf, onChange, pivot, projectTo
 import { UI, VIEWS } from './state.js';
 import { auth, api } from '../data/supabase.js';
 import { createSync } from '../data/sync.js';
+import { connectBank, syncBanks } from '../data/bank.js';
 import { ledgerBody, ledgerTotal, txRow, vGate, vInbox, vKnauf, vLedger, vMonth, vProjects, vSettings, vTrends, vYear, wireCharts } from './views.js';
 import { ic } from './icons.js';
 
@@ -182,6 +183,7 @@ export function palette(){
     ...VIEWS.map(v=>({label:v.name, group:'Go to', icon:v.icon, hint:'G '+v.key.toUpperCase(), run:()=>go(v.id)})),
     {label:'Settings', group:'Go to', icon:'settings', run:()=>go('settings')},
     {label:'New transaction', group:'Actions', icon:'plus', hint:'N', run:()=>newTx()},
+    ...(UI.mode==='live' ? [{label:'Check banks', group:'Actions', icon:'inbox', run:()=>checkBanks(true)}] : []),
     {label:'Accept all suggestions', group:'Actions', icon:'check', run:()=>{ const n=run('tx.acceptAll'); toast(`${n} accepted`); }},
     {label:'Undo', group:'Actions', hint:'⌘Z', run:doUndo},
     ...S.cats.map(c=>({label:c.name, group:'Categories', hint:GROUPS.find(g=>g.id===c.group).name, run:()=>{ UI.q=`"${c.name}"`; go('ledger'); }})),
@@ -275,6 +277,13 @@ export const ACT = {
   leaveSample: () => { try { localStorage.removeItem(SAMPLE_KEY); } catch(e){} UI.mode='signin'; UI.sent=null; render(); },
   resend: () => { UI.sent=null; render(); },
   signOut: async () => { await auth.signOut(); try { localStorage.removeItem(SAMPLE_KEY); } catch(e){} location.hash=''; location.reload(); },
+  connectBank: async () => {
+    UI.bankBusy = true; render();
+    try { const r = await connectBank(); if (r){ await reloadLive(); toast(bankSummary(r) || 'Connected'); } }
+    catch(e){ toast(e.message); }
+    finally { UI.bankBusy = false; render(); }
+  },
+  relinkBank: async a => { try { const r = await connectBank(a.dataset.id); if (r){ await reloadLive(); toast(bankSummary(r) || 'Reconnected'); } } catch(e){ toast(e.message); } },
   importCancel: () => { UI.importDraft=null; render(); },
   importApply: () => { const d = UI.importDraft; UI.importDraft=null; run('data.import', d); toast(`Imported ${d.txns.length.toLocaleString()} transactions`, true); },
   // the following fire from change events
@@ -361,6 +370,24 @@ const sync = createSync(api, { onStatus: (s, err) => {
 window.addEventListener('beforeunload', e => { if (UI.saving==='saving') e.preventDefault(); });
 onChange(() => { render(); if (UI.mode==='live') sync.push(() => S); });
 
+const bankSummary = r => [r.added && `${r.added} new in Inbox`, r.matched && `${r.matched} matched`].filter(Boolean).join(' · ');
+/** Reload from the database, keeping the current screen. Skipped while edits are still saving. */
+async function reloadLive(){
+  if (UI.saving==='saving') return;
+  const state = await sync.load(); if (state){ setState(state); render(); }
+}
+/** Pull new bank transactions (server matches them to the spreadsheet first). */
+async function checkBanks(announce=false){
+  if (UI.mode!=='live' || !(S.banks||[]).length) { if (announce) toast('No banks connected'); return; }
+  try {
+    const r = await syncBanks();
+    const relink = (r.banks||[]).filter(b => b.status!=='ok');
+    if (r.added || r.matched || r.removed) await reloadLive();
+    const msg = relink.length ? `Reconnect ${relink.map(b=>b.institution).join(', ')} in Settings` : bankSummary(r);
+    if (msg || announce) toast(msg || 'Up to date');
+  } catch(e){ if (announce) toast(e.message); console.error(e); }
+}
+
 async function boot(){
   const link = auth.fromUrl(location.hash);
   if (link && link!=='signed-in') UI.authError = link;
@@ -371,7 +398,7 @@ async function boot(){
     UI.mode = 'loading'; UI.email = auth.email; render();
     try {
       const state = await sync.load();
-      if (state){ setState(state); UI.mode = 'live'; } else UI.mode = 'nohousehold';
+      if (state){ setState(state); UI.mode = 'live'; setTimeout(checkBanks, 0); } else UI.mode = 'nohousehold';
     } catch(e){ UI.mode = 'signin'; UI.authError = e.message; }
   } else if (sample){ setState(load() || seed()); UI.mode = 'sample'; }
   else UI.mode = 'signin';

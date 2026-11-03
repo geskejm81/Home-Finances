@@ -75,6 +75,8 @@ export function createSync(api, { onStatus = () => {} } = {}) {
     const [hh] = await api(`households?select=id,name,people&id=eq.${household}`);
     const state = { v: 1, household: { id: hh.id, name: hh.name }, people: hh.people || [] };
     for (const [table, def] of Object.entries(TABLES)) state[STATE_KEY[table]] = def.toState(await selectAll(table));
+    // Connected banks are read-only here; the Plaid function manages them.
+    state.banks = (await api(`plaid_items?select=item_id,institution,status,last_synced_at&household_id=eq.${household}&order=created_at`)) || [];
     // What the database holds, in the exact shape diff() produces.
     synced = Object.fromEntries(Object.entries(TABLES).map(([table, def]) => [table, new Map(def.fromState(state).map(r => [def.key(r), r]))]));
     return state;

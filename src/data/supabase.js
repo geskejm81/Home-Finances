@@ -58,6 +58,20 @@ export const auth = {
   },
 };
 
+/** Call a server-side function (supabase/functions/<name>) as the signed-in user. */
+export async function fn(name, body) {
+  if (!session) throw new Error('signed out');
+  if (session.expires_at - 60 < Date.now() / 1000) await auth.refresh();
+  const r = await fetch(`${SUPABASE_URL}/functions/v1/${name}`, {
+    method: 'POST',
+    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || `${name} failed (${r.status})`);
+  return d;
+}
+
 /** REST call with the signed-in user's token. path like 'transactions?select=*'. */
 export async function api(path, { method = 'GET', body, headers = {} } = {}) {
   if (!session) throw new Error('signed out');

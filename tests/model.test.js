@@ -80,3 +80,25 @@ test('split keeps the total; recategorizing learns a rule; undo restores', () =>
   assert.ok(undo());
   assert.ok(txById(a.id).inbox);
 });
+
+import { reconcile } from '../supabase/functions/plaid/match.js';
+
+test('November reconciliation: amount, direction, and a few days', () => {
+  const sheet = [
+    { id: 1, date: '2026-11-01', amount: 1884.16, inflow: false },   // mortgage entered in the sheet
+    { id: 2, date: '2026-11-15', amount: 6742.00, inflow: true },    // pay
+    { id: 3, date: '2026-11-05', amount: 82.90, inflow: false },
+    { id: 4, date: '2026-11-20', amount: 82.90, inflow: false },     // same amount, later
+  ];
+  const bank = [
+    { external_id: 'a', date: '2026-11-02', amount: 1884.16 },       // posts a day late → match 1
+    { external_id: 'b', date: '2026-11-14', amount: -6742.00 },      // inflow → match 2
+    { external_id: 'c', date: '2026-11-06', amount: 82.90 },         // → 3, not 4
+    { external_id: 'd', date: '2026-11-06', amount: 82.90 },         // 4 is 14 days away → Inbox
+    { external_id: 'e', date: '2026-11-03', amount: 143.18 },        // not in sheet → Inbox
+    { external_id: 'f', date: '2026-11-15', amount: 6742.00 },       // right amount, wrong direction → Inbox
+  ];
+  const { matches, unmatched } = reconcile(bank, sheet);
+  assert.deepEqual(matches.sort((x, y) => x.id - y.id), [{ external_id: 'a', id: 1 }, { external_id: 'b', id: 2 }, { external_id: 'c', id: 3 }]);
+  assert.deepEqual(unmatched.sort(), ['d', 'e', 'f']);
+});

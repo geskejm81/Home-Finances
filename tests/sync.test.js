@@ -8,7 +8,7 @@ import { createSync, txToRow, rowToTx } from '../src/data/sync.js';
 const KEYS = { categories: ['household_id', 'name'], accounts: ['household_id', 'id'], rules: ['household_id', 'match'], projects: ['household_id', 'id'], transactions: ['id'] };
 
 function fakeApi() {
-  const db = { households: [{ id: 'hh', name: 'Test', people: ['Alex'] }], categories: [], accounts: [], rules: [], projects: [], transactions: [] };
+  const db = { households: [{ id: 'hh', name: 'Test', people: ['Alex'] }], categories: [], accounts: [], rules: [], projects: [], transactions: [], plaid_items: [] };
   const calls = [];
   const api = async (path, { method = 'GET', body, headers = {} } = {}) => {
     calls.push(method + ' ' + path.split('?')[0]);
