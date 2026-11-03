@@ -144,6 +144,9 @@ tr.left td,tr.left td:first-child{background:var(--hover);font-weight:600}
 .meter b{position:absolute;left:0;top:0;bottom:0;border-radius:5px;background:var(--text3)}
 .meter b.f-g{background:var(--good-f)}.meter b.f-y{background:var(--warn-f)}.meter b.f-r{background:var(--bad-f)}
 .meter i{position:absolute;top:-3px;bottom:-3px;width:1.5px;background:var(--text2)}
+.mhead{display:block;position:relative;height:14px}
+.today{position:absolute;top:0;transform:translateX(-50%);font-size:11px;color:var(--text2);font-weight:500;white-space:nowrap}
+.today::after{content:'';position:absolute;left:50%;top:15px;width:1.5px;height:6px;background:var(--text2)}
 /* budget table */
 .bt td:first-child{min-width:220px}
 .bt td.tr,.bt th.tr{text-align:left}
@@ -270,6 +273,7 @@ body.gated .side,body.gated .tabs{display:none!important}
   .hide-m{display:none}
   .mt .barc{display:none}
   .mt td.nm .meter{display:block;margin-top:5px;height:6px}
+  .mt td.nm .meter i{display:none}
   .mt td,.mt th{padding:6px 6px;font-size:12.5px}
   .mt td.nm{max-width:132px;overflow:hidden;text-overflow:ellipsis}
   .mt tr.grp td{font-size:13.5px}

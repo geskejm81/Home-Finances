@@ -60,12 +60,13 @@ export function vMonth(){
   const pace = isCur ? (+TODAY.slice(8)) / new Date(y, mo, 0).getDate() : null;
   const ks = knaufSummary();
   const locked = !!lockedBudget(y);
-  const meter = (pct, st) => `<span class="meter"><b class="f-${st||'n'}" style="width:${Math.max(0, Math.min(100, pct))}%"></b>${pace!=null?`<i style="left:${pace*100}%"></i>`:''}</span>`;
+  // The today mark only means something for day-to-day spending: is it ahead of the month?
+  const meter = (pct, st, paced) => `<span class="meter"><b class="f-${st||'n'}" style="width:${Math.max(0, Math.min(100, pct))}%"></b>${pace!=null && paced?`<i style="left:${pace*100}%"></i>`:''}</span>`;
   // name | bar | actual | budget | difference
-  const cells = (name, actual, budget, inv, chev) => {
+  const cells = (name, actual, budget, inv, chev, paced=false) => {
     const st = status(actual, budget, inv), pct = budget>0 ? actual/budget*100 : (actual>0 ? 100 : 0);
     const diff = inv ? actual - budget : budget - actual;
-    return `<td class="nm">${chev}<span>${name}</span>${meter(pct, st)}</td><td class="barc">${meter(pct, st)}</td>
+    return `<td class="nm">${chev}<span>${name}</span>${meter(pct, st, paced)}</td><td class="barc">${meter(pct, st, paced)}</td>
       <td class="num">${fmt(actual,false)}</td><td class="num dim">${budget ? fmt(budget,false) : '–'}</td>
       <td class="num ${budget ? (diff >= 0 ? 's-g' : 's-r') : ''}">${budget ? fmt(diff,false) : '–'}</td>`;
   };
@@ -73,14 +74,15 @@ export function vMonth(){
   const rows = GROUPS.map(g => {
     const inv = isInverse(g.id), open = UI.open[g.id];
     const gb = budgetFor(k, g.id, true).amount;
-    let out = `<tr class="grp click" data-act="toggleGroup" data-g="${g.id}">${cells(g.name, m[g.id], gb, inv, chev(open))}</tr>`;
+    const paced = g.id==='variable';
+    let out = `<tr class="grp click" data-act="toggleGroup" data-g="${g.id}">${cells(g.name, m[g.id], gb, inv, chev(open), paced)}</tr>`;
     if (!open) return out;
     const names = S.cats.filter(c => c.group===g.id).map(c => c.name)
       .map(c => [c, m.cats[c] || 0, budgetFor(k, c).amount]).filter(([, a, b]) => a || b)
       .sort((a, b) => Math.max(b[1], b[2]) - Math.max(a[1], a[2]));
     for (const [c, a, b] of names){
       const o = UI.openCat===c;
-      out += `<tr class="cat click" data-act="toggleCat" data-c="${esc(c)}">${cells(esc(c), a, b, inv, chev(o))}</tr>`;
+      out += `<tr class="cat click" data-act="toggleCat" data-c="${esc(c)}">${cells(esc(c), a, b, inv, chev(o), paced)}</tr>`;
       if (o) out += S.txns.filter(t => counts(t) && ym(t.d)===k && parts(t).some(p => p.c===c)).sort((x, z) => z.d.localeCompare(x.d))
         .map(t => `<tr class="txr click" data-tx="${t.id}"><td class="nm" colspan="2"><span>${esc(label(t))}</span><span class="dim">${shortDate(t.d)}${t.n && t.m ? ' · '+esc(t.n) : ''}</span></td>
           <td class="num">${fmt(t.split ? t.split.filter(p => p.c===c).reduce((s, p) => s + p.a, 0) : t.a)}</td><td></td><td></td></tr>`).join('');
@@ -95,7 +97,7 @@ export function vMonth(){
       ${!isCur?`<button class="btn ghost" data-act="month" data-d="0">Today</button>`:''}
     </div>
     <div class="hero"><div class="big ${m.left<0?'neg':''}">${money(m.left,false)}</div><div class="cap">left</div></div>
-    <div class="tbl"><table class="mt"><thead><tr><th></th><th class="barc"></th><th>Actual</th><th>${locked?'Budget':'Typical'}</th><th>Difference</th></tr></thead>
+    <div class="tbl"><table class="mt"><thead><tr><th></th><th class="barc">${pace!=null?`<span class="mhead"><span class="today" style="left:${pace*100}%">${shortDate(TODAY)}</span></span>`:''}</th><th>Actual</th><th>${locked?'Budget':'Typical'}</th><th>Difference</th></tr></thead>
       <tbody>${rows}<tr class="left">${cells('Left', m.left, lb, true, '')}</tr></tbody></table></div>
     ${ks.outstanding>0 ? `<div class="sec"><div class="row click" data-go="knauf"><span class="name">Knauf</span><span class="sub">${ks.open.length+ks.submitted.length} items</span><span class="amt">${fmt(ks.outstanding)}</span></div></div>`:''}
   </div>`;
