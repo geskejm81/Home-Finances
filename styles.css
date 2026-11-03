@@ -106,6 +106,9 @@ kbd{font:11px/1 var(--font);color:var(--text3);border:1px solid var(--line2);bor
 .search svg{width:15px;height:15px;color:var(--text3)}
 .search input{flex:1}
 .search .tot{color:var(--text2);font-weight:500}
+.search .clr{width:24px;height:24px;margin-right:-4px}
+.search .clr svg{width:14px;height:14px;color:var(--text2)}
+.search .clr[hidden]{display:none}
 /* table */
 .tbl{overflow:auto;border:1px solid var(--line2);border-radius:var(--r);background:var(--surface)}
 table{border-collapse:collapse;width:100%;font-size:12.5px}

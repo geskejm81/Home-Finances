@@ -8,6 +8,7 @@ import { auth, api } from '../data/supabase.js';
 import { createSync } from '../data/sync.js';
 import { workingLines } from '../core/budget.js';
 import { connectBank, syncBanks } from '../data/bank.js';
+import { listMembers, inviteMember, removeMember } from '../data/members.js';
 import { ledgerBody, ledgerTotal, txRow, vGate, vInbox, vKnauf, vLedger, vMonth, vProjects, vSettings, vTrends, vYear, vBudget, wireCharts } from './views.js';
 import { ic } from './icons.js';
 
@@ -21,10 +22,14 @@ window.addEventListener('hashchange', () => { if (/access_token=|error=/.test(lo
 /* ============================================================
    RENDER
    ============================================================ */
+/** Navigating from the sidebar, tabs, palette, or keys starts the Ledger with a clean search. */
+export const nav = (id) => go(id, id==='ledger' ? {q:'', limit:150} : {});
+
 export function render(){
   const gated = !['live','sample'].includes(UI.mode);
   document.body.classList.toggle('gated', gated);
   if (gated){ document.getElementById('main').innerHTML = vGate(); return; }
+  if (UI.view==='settings' && UI.mode==='live' && UI.members==null && !UI.membersLoading) loadMembers();
   renderSide(); renderTabs();
   const main = document.getElementById('main');
   const keepSearch = UI.view==='ledger' && document.activeElement && document.activeElement.id==='q';
@@ -181,7 +186,7 @@ export function afterInboxAction(id){
 }
 export function palette(){
   const items = [
-    ...VIEWS.map(v=>({label:v.name, group:'Go to', icon:v.icon, hint:'G '+v.key.toUpperCase(), run:()=>go(v.id)})),
+    ...VIEWS.map(v=>({label:v.name, group:'Go to', icon:v.icon, hint:'G '+v.key.toUpperCase(), run:()=>nav(v.id)})),
     {label:'Settings', group:'Go to', icon:'settings', run:()=>go('settings')},
     {label:'New transaction', group:'Actions', icon:'plus', hint:'N', run:()=>newTx()},
     ...(UI.mode==='live' ? [{label:'Check banks', group:'Actions', icon:'inbox', run:()=>checkBanks(true)}] : []),
@@ -210,7 +215,7 @@ export function toast(msg, undoable=false){
 }
 document.addEventListener('click', e => {
   const goEl = e.target.closest('[data-go]');
-  if (goEl){ go(goEl.dataset.go); return; }
+  if (goEl){ nav(goEl.dataset.go); return; }
   const a = e.target.closest('[data-act]');
   const act = a?.dataset.act;
   if (act && ACT[act]){ if (a.tagName!=='INPUT' && a.tagName!=='SELECT') { e.stopPropagation(); ACT[act](a, e); return; } }
@@ -294,6 +299,14 @@ export const ACT = {
     try { run('budget.lock', {year:y, lines:workingLines(y), reason, by:UI.email}); UI.budgetReason=''; render(); toast(`Revision saved`, true); }
     catch(e){ toast(e.message); }
   },
+  clearSearch: () => { UI.q=''; UI.limit=150; render(); document.getElementById('q')?.focus(); },
+  memberRemove: async a => {
+    const email = a.dataset.email;
+    if (UI.confirmRemove !== email){ UI.confirmRemove = email; render(); return; }
+    UI.confirmRemove = null;
+    try { await removeMember(email); toast(`Removed ${email}`); } catch(e){ toast(e.message); }
+    await loadMembers();
+  },
   importCancel: () => { UI.importDraft=null; render(); },
   importApply: () => { const d = UI.importDraft; UI.importDraft=null; run('data.import', d); toast(`Imported ${d.txns.length.toLocaleString()} transactions`, true); },
   // the following fire from change events
@@ -322,11 +335,16 @@ document.addEventListener('change', e => {
   else if (act==='splitAmt'){ UI.splitDraft[+a.dataset.i].a = v; renderPanel(); }
 });
 document.addEventListener('input', e => {
-  if (e.target.id==='q'){ UI.q = e.target.value; UI.limit = 150; render(); }
+  if (e.target.id==='q'){ UI.q = e.target.value; UI.limit = 150; render(); document.getElementById('qclear')?.toggleAttribute('hidden', !UI.q); }
   if (e.target.dataset?.act==='budgetReason'){ UI.budgetReason = e.target.value; const b = document.querySelector('[data-act="budgetSaveRev"]'); if (b) b.disabled = !UI.budgetReason.trim(); }
 });
 document.addEventListener('submit', async e => {
   e.preventDefault(); const f = e.target, kind = f.dataset.form;
+  if (kind==='invite'){
+    const email = f.email.value.trim(); if (!email) return;
+    try { await inviteMember(email); f.email.value=''; toast(`Invited ${email}`); } catch(err){ toast(err.message); }
+    await loadMembers(); return;
+  }
   if (kind==='signin'){
     const email = f.email.value.trim(); if (!email) return;
     const b = f.querySelector('button'); b.disabled = true;
@@ -349,7 +367,7 @@ document.addEventListener('keydown', e => {
   if (typing) { if (e.key==='Enter' && document.activeElement.closest('#panel')) document.activeElement.blur(); return; }
   if (e.metaKey||e.ctrlKey||e.altKey) return;
   const k = e.key.toLowerCase();
-  if (gPending){ gPending=false; const v = VIEWS.find(v=>v.key===k); if (v){ go(v.id); return; } }
+  if (gPending){ gPending=false; const v = VIEWS.find(v=>v.key===k); if (v){ nav(v.id); return; } }
   if (k==='g'){ gPending=true; setTimeout(()=>gPending=false, 800); return; }
   if (k==='/'){ e.preventDefault(); if (UI.view!=='ledger') go('ledger'); setTimeout(()=>document.getElementById('q')?.focus(),0); return; }
   if (k==='n'){ e.preventDefault(); newTx(UI.view==='knauf'); return; }
@@ -382,6 +400,11 @@ const sync = createSync(api, { onStatus: (s, err) => {
 window.addEventListener('beforeunload', e => { if (UI.saving==='saving') e.preventDefault(); });
 onChange(() => { render(); if (UI.mode==='live') sync.push(() => S); });
 
+async function loadMembers(){
+  UI.membersLoading = true;
+  try { UI.members = await listMembers(); } catch(e){ UI.members = []; console.error(e); }
+  UI.membersLoading = false; if (UI.view==='settings') render();
+}
 const bankSummary = r => [r.added && `${r.added} new in Inbox`, r.matched && `${r.matched} matched`].filter(Boolean).join(' · ');
 /** Reload from the database, keeping the current screen. Skipped while edits are still saving. */
 async function reloadLive(){

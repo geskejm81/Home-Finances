@@ -151,7 +151,7 @@ export function ledgerBody(){
 }
 export function vLedger(){
   return `<div class="page"><div class="top"><h1>Ledger</h1><span class="sp"></span><button class="btn" data-act="new">${ic('plus')}New</button></div>
-    <label class="search">${ic('search')}<input id="q" placeholder="Search" value="${esc(UI.q)}" autocomplete="off"><span class="tot" id="qtot">${ledgerTotal()}</span></label>
+    <label class="search">${ic('search')}<input id="q" placeholder="Search" value="${esc(UI.q)}" autocomplete="off"><span class="tot" id="qtot">${ledgerTotal()}</span><button class="icon clr" id="qclear" data-act="clearSearch" title="Clear" ${UI.q?'':'hidden'}>${ic('close')}</button></label>
     <div id="ledgerBody">${ledgerBody()}</div></div>`;
 }
 
@@ -254,6 +254,10 @@ export function vProjects(){
 /* ---------- Settings ---------- */
 export function vSettings(){
   return `<div class="page"><div class="top"><h1>Settings</h1></div>
+    ${UI.mode==='live' ? `<div class="sec"><h2>Members</h2>
+      ${(UI.members||[]).map(m=>`<div class="row"><span class="name">${esc(m.email)}</span><span class="sub">${m.is_you?'You':m.joined?'':'Invited'}</span>${m.is_you?'':
+        UI.confirmRemove===m.email ? `<button class="btn pri" data-act="memberRemove" data-email="${esc(m.email)}">Remove</button>` : `<button class="icon" data-act="memberRemove" data-email="${esc(m.email)}" title="Remove">${ic('close')}</button>`}</div>`).join('')}
+      <form class="inl" data-form="invite"><input name="email" type="email" placeholder="Invite by email" autocomplete="off"></form></div>` : ''}
     ${GROUPS.map(g => `<div class="sec"><h2>${g.name}</h2>${S.cats.filter(c=>c.group===g.id).map(c=>`<div class="row"><input class="name" value="${esc(c.name)}" data-act="catRename" data-from="${esc(c.name)}"><select class="sel" data-act="catMove" data-c="${esc(c.name)}">${GROUPS.map(x=>`<option value="${x.id}" ${x.id===g.id?'selected':''}>${x.name}</option>`).join('')}</select></div>`).join('')}
       <form class="inl" data-form="cat" data-g="${g.id}"><input name="name" placeholder="New category" autocomplete="off"></form></div>`).join('')}
     <div class="sec"><h2>Rules</h2>${S.rules.map(r=>`<div class="row"><span class="name">${esc(r.m)}</span><span class="sub">${r.x?'Excluded':r.k?'Knauf':esc(r.c)}</span><button class="icon" data-act="ruleDel" data-m="${esc(r.m)}">${ic('close')}</button></div>`).join('')}</div>
