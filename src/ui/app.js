@@ -345,6 +345,12 @@ document.addEventListener('submit', async e => {
     try { await inviteMember(email); f.email.value=''; toast(`Invited ${email}`); } catch(err){ toast(err.message); }
     await loadMembers(); return;
   }
+  if (kind==='code'){
+    const b = f.querySelector('button'); b.disabled = true;
+    try { await auth.verifyCode(UI.sent, f.code.value); UI.sent = null; UI.authError = null; await boot(); }
+    catch(err){ UI.authError = err.message; render(); }
+    return;
+  }
   if (kind==='signin'){
     const email = f.email.value.trim(); if (!email) return;
     const b = f.querySelector('button'); b.disabled = true;

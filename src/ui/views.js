@@ -281,7 +281,10 @@ export function vSettings(){
 export function vGate(){
   const inner = UI.mode==='loading' ? ''
     : UI.mode==='nohousehold' ? `<h1>No household for ${esc(UI.email)}</h1><button class="btn" data-act="signOut">Sign out</button>`
-    : UI.sent ? `<h1>Check your email</h1><p>${esc(UI.sent)}</p><button class="btn ghost" data-act="resend">Use another email</button>`
+    : UI.sent ? `<h1>Check your email</h1><p>${esc(UI.sent)}</p>
+       <form data-form="code"><input name="code" placeholder="Code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" required autofocus><button class="btn pri">Sign in</button></form>
+       ${UI.authError ? `<p class="err">${esc(UI.authError)}</p>` : ''}
+       <button class="btn ghost" data-act="resend">Use another email</button>`
     : `<form data-form="signin"><input type="email" name="email" placeholder="Email" autocomplete="email" required autofocus><button class="btn pri">Send link</button></form>
        ${UI.authError ? `<p class="err">${esc(UI.authError)}</p>` : ''}
        <button class="btn ghost" data-act="sample">Look around</button>`;

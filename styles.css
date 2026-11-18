@@ -250,6 +250,7 @@ body.gated .side,body.gated .tabs{display:none!important}
 .gate form{display:flex;flex-direction:column;gap:10px}
 .gate input{height:40px;padding:0 12px;border:1px solid var(--line2);border-radius:8px;background:var(--surface)}
 .gate input:focus{border-color:var(--accent)}
+.gate input[name=code]{font-size:20px;letter-spacing:.3em;text-align:center}
 .gate .btn{height:38px;justify-content:center}
 .gate .btn.ghost{align-self:center}
 .more{display:none}

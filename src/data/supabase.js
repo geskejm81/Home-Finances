@@ -42,6 +42,17 @@ export const auth = {
     return 'signed-in';
   },
 
+  /** Sign in with the code from the email (works where the link can't, like a Home Screen app). */
+  async verifyCode(email, code) {
+    const r = await fetch(`${SUPABASE_URL}/auth/v1/verify`, {
+      method: 'POST', headers: { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'email', email, token: String(code).replace(/\s/g, '') }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.access_token) throw new Error(/expired|invalid/i.test(d.msg || d.error_description || '') ? 'That code is wrong or expired' : (d.msg || 'Couldn\'t sign in'));
+    keep(fromTokens(d));
+  },
+
   async refresh() {
     if (!session?.refresh_token) throw new Error('signed out');
     const r = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
