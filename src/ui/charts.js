@@ -48,3 +48,20 @@ export function barChart(svg, tip, data, onPick, budget=null){
     r.addEventListener('click', () => onPick && onPick(data[+r.dataset.i][0]));
   });
 }
+
+/**
+ * Donut from circle strokes (no library). slices: [{ key, label, value, color }].
+ * Each slice carries data-act="donutPick" data-c=key so a tap opens its transactions.
+ */
+export function donut(slices, center, sub = '') {
+  const total = slices.reduce((s, x) => s + Math.max(0, x.value), 0) || 1;
+  const R = 40, C = 2 * Math.PI * R, gap = slices.length > 1 ? 1.2 : 0;
+  let at = 0;
+  const arcs = slices.filter(x => x.value > 0).map(x => {
+    const len = (x.value / total) * C, dash = Math.max(0.01, len - gap);
+    const el = `<circle class="slice" cx="50" cy="50" r="${R}" stroke="${x.color}" stroke-dasharray="${dash.toFixed(2)} ${(C - dash).toFixed(2)}" stroke-dashoffset="${(-at).toFixed(2)}" data-act="donutPick" data-c="${String(x.key).replace(/"/g, '&quot;')}"><title>${x.label}: ${money(x.value, false)} (${Math.round(x.value / total * 100)}%)</title></circle>`;
+    at += len; return el;
+  }).join('');
+  return `<svg class="donut" viewBox="0 0 100 100"><circle cx="50" cy="50" r="${R}" class="track"/><g transform="rotate(-90 50 50)">${arcs}</g>
+    <text x="50" y="${sub ? 49 : 53}" class="dc">${center}</text>${sub ? `<text x="50" y="60" class="ds">${sub}</text>` : ''}</svg>`;
+}

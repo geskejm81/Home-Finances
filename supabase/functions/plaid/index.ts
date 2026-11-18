@@ -34,6 +34,32 @@ async function plaid(path: string, body: Record<string, unknown>) {
   return d;
 }
 
+// Logo and category icon for a Plaid transaction.
+const visuals = (t: any) => ({
+  logo_url: t.logo_url || t.counterparties?.find((c: any) => c.logo_url)?.logo_url || null,
+  pfc: t.personal_finance_category?.detailed || t.personal_finance_category?.primary || null,
+  pfc_icon: t.personal_finance_category_icon_url || null,
+});
+
+/** Fill logos/icons on stored bank rows that predate them (one /transactions/get pass). */
+async function enrich(db: SupabaseClient, hh: string, access_token: string) {
+  const { data: rows } = await db.from('transactions').select('external_id,date').eq('household_id', hh)
+    .not('external_id', 'is', null).is('pfc', null).limit(2000);
+  if (!rows?.length) return 0;
+  const want = new Set(rows.map(r => r.external_id));
+  const dates = rows.map(r => r.date).sort();
+  let offset = 0, total = 1, n = 0;
+  while (offset < total) {
+    const d = await plaid('/transactions/get', { access_token, start_date: dates[0], end_date: dates.at(-1), options: { count: 500, offset } });
+    total = d.total_transactions; offset += d.transactions.length;
+    for (const t of d.transactions) if (want.has(t.transaction_id)) {
+      await db.from('transactions').update(visuals(t)).eq('household_id', hh).eq('external_id', t.transaction_id); n++;
+    }
+    if (!d.transactions.length) break;
+  }
+  return n;
+}
+
 let lastId = 0;
 const newId = () => (lastId = Math.max(lastId + 1, Date.now() * 1000 + Math.floor(Math.random() * 1000)));
 
@@ -69,7 +95,7 @@ async function syncItem(db: SupabaseClient, hh: string, item_id: string, start: 
     // Knauf expense reimbursements: kept out of income and the Inbox; matched to charges in the app.
     const depositRows = all.filter(t => t.amount < 0 && isKnaufDeposit(t.name)).map(t => ({
       id: newId(), household_id: hh, date: t.date, merchant: t.merchant_name || t.name, raw: t.name, amount: t.amount,
-      account: t.account_id, source: 'bank', inbox: false, excluded: true, knauf: 'deposit', external_id: t.transaction_id,
+      account: t.account_id, source: 'bank', inbox: false, excluded: true, knauf: 'deposit', external_id: t.transaction_id, ...visuals(t),
     }));
     if (depositRows.length) { const { error } = await db.from('transactions').insert(depositRows); if (error) throw new Error(error.message); }
     deposits = depositRows.length;
@@ -94,14 +120,14 @@ async function syncItem(db: SupabaseClient, hh: string, item_id: string, start: 
     for (const m of matches) {
       const t = byId.get(m.external_id);
       await db.from('transactions').update({
-        external_id: t.transaction_id, merchant: t.merchant_name || t.name, raw: t.name, account: t.account_id,
+        external_id: t.transaction_id, merchant: t.merchant_name || t.name, raw: t.name, account: t.account_id, ...visuals(t),
       }).eq('id', m.id).eq('household_id', hh);
     }
     matched = matches.length;
 
     const rows = unmatched.map(x => byId.get(x)).map(t => ({
       id: newId(), household_id: hh, date: t.date, merchant: t.merchant_name || t.name, raw: t.name,
-      amount: t.amount, account: t.account_id, source: 'bank', inbox: true, external_id: t.transaction_id,
+      amount: t.amount, account: t.account_id, source: 'bank', inbox: true, external_id: t.transaction_id, ...visuals(t),
     }));
     for (let i = 0; i < rows.length; i += 500) {
       const { error } = await db.from('transactions').insert(rows.slice(i, i + 500));
@@ -112,7 +138,7 @@ async function syncItem(db: SupabaseClient, hh: string, item_id: string, start: 
 
   // Corrections from the bank only touch rows nobody has reviewed yet.
   for (const t of modified.filter(t => !t.pending)) {
-    await db.from('transactions').update({ date: t.date, amount: t.amount, raw: t.name })
+    await db.from('transactions').update({ date: t.date, amount: t.amount, raw: t.name, ...visuals(t) })
       .eq('household_id', hh).eq('external_id', t.transaction_id).eq('inbox', true);
   }
   const gone = removed.map(r => r.transaction_id);
@@ -122,6 +148,7 @@ async function syncItem(db: SupabaseClient, hh: string, item_id: string, start: 
   }
 
   await db.from('plaid_tokens').update({ cursor }).eq('item_id', item_id);
+  await enrich(db, hh, tok.access_token).catch(() => 0);   // best effort; never blocks a sync
   await db.from('plaid_items').update({ status: 'ok', last_error: null, last_synced_at: new Date().toISOString() }).eq('item_id', item_id);
   return { added: inserted, matched, deposits, removed: gone.length };
 }

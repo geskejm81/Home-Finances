@@ -48,6 +48,7 @@ export function txToRow(t) {
     person: t.p ?? null, account: t.acct ?? null, source: t.src || 'manual', inbox: !!t.inbox, excluded: !!t.x,
     knauf: t.k ?? null, knauf_submitted: t.ks ?? null, knauf_reimbursed: t.kr ?? null, knauf_deposit: t.kdep ?? null,
     return_of: t.ret ?? null, split: t.split ?? null, project: t.proj ?? null, external_id: t.ext ?? null,
+    logo_url: t.logo ?? null, pfc: t.pfc ?? null, pfc_icon: t.pfci ?? null,
   };
 }
 export function rowToTx(r) {
@@ -55,7 +56,7 @@ export function rowToTx(r) {
     id: Number(r.id), d: r.date, m: r.merchant, raw: r.raw, a: Number(r.amount), c: r.category, n: r.note, p: r.person,
     acct: r.account, src: r.source, inbox: r.inbox ? 1 : null, x: r.excluded ? 1 : null, k: r.knauf, ks: r.knauf_submitted,
     kr: r.knauf_reimbursed, kdep: r.knauf_deposit == null ? null : Number(r.knauf_deposit), ret: r.return_of == null ? null : Number(r.return_of),
-    split: r.split, proj: r.project, ext: r.external_id,
+    split: r.split, proj: r.project, ext: r.external_id, logo: r.logo_url, pfc: r.pfc, pfci: r.pfc_icon,
   };
   for (const k in t) if (t[k] == null) delete t[k];
   return t;

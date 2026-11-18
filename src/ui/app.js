@@ -25,6 +25,16 @@ window.addEventListener('hashchange', () => { if (/access_token=|error=/.test(lo
 /** Navigating from the sidebar, tabs, palette, or keys starts the Ledger with a clean search. */
 export const nav = (id) => go(id, id==='ledger' ? {q:'', limit:150} : {});
 
+/* theme: follows the device until you choose; the choice is kept on this device */
+const THEME_KEY = 'household.theme';
+export const isDark = () => (document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')) === 'dark';
+export function setTheme(t){
+  document.documentElement.dataset.theme = t;
+  try { localStorage.setItem(THEME_KEY, t); } catch(e){}
+  document.querySelector('meta[name=color-scheme]')?.setAttribute('content', t);
+  render();
+}
+
 export function render(){
   const gated = !['live','sample'].includes(UI.mode);
   document.body.classList.toggle('gated', gated);
@@ -48,7 +58,8 @@ export function renderSide(){
       v.id==='inbox' && n ? `<span class="ct hot">${n}</span>` :
       v.id==='knauf' && ks.outstanding>0 ? `<span class="ct">${money(ks.outstanding,false)}</span>` : ''}</button>`).join('')}
     <div class="grow"></div>
-    <button class="nav ${UI.view==='settings'?'on':''}" data-go="settings">${ic('settings')}Settings</button>`;
+    <div class="foot"><button class="nav ${UI.view==='settings'?'on':''}" data-go="settings">${ic('settings')}Settings</button>
+      <button class="icon" data-act="theme" title="Light / dark">${ic(isDark()?'sun':'moon')}</button></div>`;
 }
 export function renderTabs(){
   const n = inbox().length;
@@ -58,7 +69,7 @@ export function renderTabs(){
     `<button class="${inMore||UI.more?'on':''}" data-act="more">${ic('more')}More</button>`;
   document.getElementById('more').className = 'more' + (UI.more?' on':'');
   document.getElementById('more').innerHTML = ['year','trends','budget','projects'].map(id => { const v=VIEWS.find(x=>x.id===id); return `<button class="nav" data-go="${id}">${ic(v.icon)}${v.name}</button>`; }).join('') +
-    `<button class="nav" data-go="settings">${ic('settings')}Settings</button>`;
+    `<button class="nav" data-go="settings">${ic('settings')}Settings</button>` + `<button class="nav" data-act="theme">${ic(isDark()?'sun':'moon')}${isDark()?'Light mode':'Dark mode'}</button>`;
 }
 
 /* ============================================================
@@ -192,6 +203,7 @@ export function palette(){
     ...(UI.mode==='live' ? [{label:'Check banks', group:'Actions', icon:'inbox', run:()=>checkBanks(true)}] : []),
     {label:'Accept all suggestions', group:'Actions', icon:'check', run:()=>{ const n=run('tx.acceptAll'); toast(`${n} accepted`); }},
     {label:'Undo', group:'Actions', hint:'⌘Z', run:doUndo},
+    {label: isDark() ? 'Light mode' : 'Dark mode', group:'Actions', icon: isDark() ? 'sun' : 'moon', run:()=>setTheme(isDark() ? 'light' : 'dark')},
     ...S.cats.map(c=>({label:c.name, group:'Categories', hint:GROUPS.find(g=>g.id===c.group).name, run:()=>{ UI.q=`"${c.name}"`; go('ledger'); }})),
     ...S.people.map(p=>({label:p, group:'People', run:()=>{ UI.q=p; go('ledger'); }})),
     ...S.projects.slice().reverse().map(p=>({label:p.name, group:'Projects', hint:String(p.year), run:()=>{ go('projects',{projYear:p.year}); UI.sel='P'+p.id; render(); showPanel(true); }})),
@@ -307,6 +319,9 @@ export const ACT = {
     try { await removeMember(email); toast(`Removed ${email}`); } catch(e){ toast(e.message); }
     await loadMembers();
   },
+  theme: () => setTheme(isDark() ? 'light' : 'dark'),
+  donutScope: a => { UI.donutScope = a.dataset.s; render(); },
+  donutPick: a => { const c = a.dataset.c; UI.q = c==='__other' ? UI.month : `"${c}" ${UI.month}`; go('ledger'); },
   importCancel: () => { UI.importDraft=null; render(); },
   importApply: () => { const d = UI.importDraft; UI.importDraft=null; run('data.import', d); toast(`Imported ${d.txns.length.toLocaleString()} transactions`, true); },
   // the following fire from change events

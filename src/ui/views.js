@@ -1,11 +1,12 @@
 // Every screen is a function of state that returns HTML.
 
 import { GROUPS, MON, MONL, TODAY, addYm, dObj, dayLabel, esc, fmt, money, shortDate, ym } from '../core/format.js';
-import { S, catGroup, label, txById } from '../core/store.js';
+import { S, acctName, catGroup, label, txById } from '../core/store.js';
+import { catColor, inChart, topCategories, SLOTS } from '../core/colors.js';
 import { agg, catLabel, counts, inbox, knaufSummary, month, netOf, parts, pivot, projectTotal, returnsOf, searchTx, suggest, typical } from '../core/model.js';
 import { UI } from './state.js';
 import { budgetFor, groupBudgets, isInverse, lockedBudget, revisions, runRate, series, status, suggestBudget, trend, workingLines } from '../core/budget.js';
-import { barChart, lineChart } from './charts.js';
+import { barChart, donut, lineChart } from './charts.js';
 import { go } from './app.js';
 import { ic } from './icons.js';
 
@@ -20,13 +21,28 @@ export function amtCell(t){
   if (t.a<0) return `<span class="amt in">+${fmt(-t.a)}</span>`;
   return `<span class="amt">${fmt(t.a)}</span>`;
 }
+/** Merchant logo from the bank, else Plaid's category icon, else a letter in the category's color. */
+export function avatar(t, hint){
+  const name = label(t), color = hint ? catColor(hint) : t.k ? 'var(--prev)' : t.c ? catColor(t.c) : t.split ? catColor(t.split[0].c) : 'var(--text3)';
+  const letter = (String(name).match(/[A-Za-z0-9]/) || ['·'])[0].toUpperCase();
+  const src = t.logo || t.pfci;
+  return `<span class="av" style="--av:${color}"><span>${letter}</span>${src ? `<img src="${esc(src)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}</span>`;
+}
+/** Category with its color dot. */
+export const catTag = t => {
+  const l = catLabel(t); if (!l) return '';
+  const c = t.k ? 'var(--prev)' : t.x ? 'var(--text3)' : t.c ? catColor(t.c) : t.split ? catColor(t.split[0].c) : 'var(--text3)';
+  return `<span class="ctag"><i style="background:${c}"></i>${esc(l)}</span>`;
+};
 export function txRow(t, extra=''){
   const ret = t.ret ? `<span class="pill">${ic('ret')}${shortDate(txById(t.ret)?.d||t.d)}</span>` : '';
   const who = t.p ? `<span class="pill hide-m">${esc(t.p)}</span>` : '';
-  return `<div class="row click ${UI.sel===t.id?'sel':''} ${t.d>TODAY?'muted':''}" data-tx="${t.id}">
-    ${t.d>TODAY ? `<span class="dot hollow" title="Scheduled"></span>` : ''}
-    <span class="name">${esc(label(t))}</span>${ret}${who}
-    <span class="sub">${esc(t.m && t.n ? t.n : (catLabel(t)!==label(t) ? catLabel(t) : ''))}</span>
+  const note = t.m && t.n ? `<span class="note">${esc(t.n)}</span>` : '';
+  const acct = t.acct ? `<span class="note hide-m">${esc(acctName(t.acct))}</span>` : '';
+  return `<div class="row tx click ${UI.sel===t.id?'sel':''} ${t.d>TODAY?'muted':''}" data-tx="${t.id}">
+    ${avatar(t)}
+    <span class="main"><span class="name">${esc(label(t))}</span><span class="meta">${catTag(t)}${note}${acct}</span></span>
+    ${t.d>TODAY ? `<span class="pill">${ic('clock')}Scheduled</span>` : ''}${ret}${who}
     ${amtCell(t)}${extra}</div>`;
 }
 export function byDay(list, rowFn=txRow, totals=false){
@@ -47,12 +63,25 @@ export function vInbox(){
       const s = suggest(t), i = list.indexOf(t);
       const pill = s.type==='none' ? `<button class="pill" data-act="pickCat" data-id="${t.id}">${s.label}</button>`
         : `<button class="pill ${s.type==='knauf'||s.type==='reimb'?'k':'sug'}" data-act="accept" data-id="${t.id}">${s.type==='return'?ic('ret'):''}${esc(s.label)}</button>`;
-      return `<div class="row click ${UI.sel===t.id||(!UI.sel&&UI.cursor===i)?'sel':''}" data-tx="${t.id}">
-        <span class="name">${esc(t.m)}</span>${pill}${amtCell(t)}</div>`;
+      return `<div class="row tx click ${UI.sel===t.id||(!UI.sel&&UI.cursor===i)?'sel':''}" data-tx="${t.id}">
+        ${avatar(t, s.c)}<span class="main"><span class="name">${esc(t.m)}</span><span class="meta"><span class="note">${esc(acctName(t.acct)||'')}</span></span></span>${pill}${amtCell(t)}</div>`;
     })}</div>`;
 }
 
 /* ---------- Month ---------- */
+/** Where the month's money went: donut + legend. Scope toggles between all spending and variable only. */
+function spendCard(k){
+  const scope = UI.donutScope, G = catGroup(), m = month(k);
+  const inScope = c => scope==='variable' ? G[c]==='variable' : (G[c]==='fixed' || G[c]==='variable');
+  const cats = Object.entries(m.cats).filter(([c,v]) => inScope(c) && v > 0);
+  const total = cats.reduce((s,[,v])=>s+v,0);
+  const named = cats.filter(([c]) => inChart(c, scope)).sort((a,b) => topCategories(scope).indexOf(a[0]) - topCategories(scope).indexOf(b[0]));
+  const other = cats.filter(([c]) => !inChart(c, scope)).reduce((s,[,v])=>s+v,0);
+  const slices = [...named.map(([c,v]) => ({key:c, label:c, value:v, color:catColor(c, scope)})), ...(other>0 ? [{key:'__other', label:'Other', value:other, color:'var(--c-other)'}] : [])];
+  const legend = [...slices].sort((a,b)=>(a.key==='__other')-(b.key==='__other') || b.value-a.value).map(x => `<button class="lg" data-act="donutPick" data-c="${esc(x.key)}"><i style="background:${x.color}"></i><span class="ln">${esc(x.label)}</span><span class="lv">${money(x.value,false)}</span><span class="lp">${total?Math.round(x.value/total*100):0}%</span></button>`).join('');
+  return `<div class="card spend"><h3>Where it went<span class="sp"></span><span class="seg sm">${[['all','All'],['variable','Variable']].map(([id,n])=>`<button class="${scope===id?'on':''}" data-act="donutScope" data-s="${id}">${n}</button>`).join('')}</span></h3>
+    ${total ? `<div class="sbody">${donut(slices, money(total,false), MON[+k.slice(5)-1])}<div class="legend2">${legend}</div></div>` : `<div class="empty sm">No spending yet</div>`}</div>`;
+}
 export function vMonth(){
   const k = UI.month, m = month(k), G = catGroup();
   const [y, mo] = k.split('-').map(Number);
@@ -83,6 +112,8 @@ export function vMonth(){
     for (const [c, a, b] of names){
       const o = UI.openCat===c;
       out += `<tr class="cat click" data-act="toggleCat" data-c="${esc(c)}">${cells(esc(c), a, b, inv, chev(o), paced)}</tr>`;
+      if (o){ const sv = series(c).map(x=>x[1]).slice(-12), t = trend(sv);
+        out += `<tr class="sprow"><td colspan="5"><span class="spk">${spark(sv, t)}<span class="tg tg-${t}">${TREND[t][0]}</span></span><span class="dim">12-mo avg ${money(sv.reduce((s,x)=>s+x,0)/(sv.length||1),false)}</span></td></tr>`; }
       if (o) out += S.txns.filter(t => counts(t) && ym(t.d)===k && parts(t).some(p => p.c===c)).sort((x, z) => z.d.localeCompare(x.d))
         .map(t => `<tr class="txr click" data-tx="${t.id}"><td class="nm" colspan="2"><span>${esc(label(t))}</span><span class="dim">${shortDate(t.d)}${t.n && t.m ? ' · '+esc(t.n) : ''}</span></td>
           <td class="num">${fmt(t.split ? t.split.filter(p => p.c===c).reduce((s, p) => s + p.a, 0) : t.a)}</td><td></td><td></td></tr>`).join('');
@@ -96,7 +127,11 @@ export function vMonth(){
       <button class="icon" data-act="month" data-d="1">${ic('chev')}</button><span class="sp"></span>
       ${!isCur?`<button class="btn ghost" data-act="month" data-d="0">Today</button>`:''}
     </div>
-    <div class="hero"><div class="big ${m.left<0?'neg':''}">${money(m.left,false)}</div><div class="cap">left</div></div>
+    <div class="mhead2">
+      <div class="hero"><div class="big ${m.left<0?'neg':''}">${money(m.left,false)}</div><div class="cap">left</div>
+        <div class="kv"><span>Spent</span><b>${money(m.fixed+m.variable,false)}</b><span>Saved</span><b>${money(m.savings,false)}</b><span>Earned</span><b>${money(m.income,false)}</b></div></div>
+      ${spendCard(k)}
+    </div>
     <div class="tbl"><table class="mt"><thead><tr><th></th><th class="barc">${pace!=null?`<span class="mhead"><span class="today" style="left:${pace*100}%">${shortDate(TODAY)}</span></span>`:''}</th><th>Actual</th><th>${locked?'Budget':'Typical'}</th><th>Difference</th></tr></thead>
       <tbody>${rows}<tr class="left">${cells('Left', m.left, lb, true, '')}</tr></tbody></table></div>
     ${ks.outstanding>0 ? `<div class="sec"><div class="row click" data-go="knauf"><span class="name">Knauf</span><span class="sub">${ks.open.length+ks.approved.length} items</span><span class="amt">${fmt(ks.outstanding)}</span></div></div>`:''}
@@ -157,6 +192,17 @@ export function vLedger(){
 
 /* ---------- Trends ---------- */
 export let CH = {};
+/** This month's biggest merchants (rows without a merchant group by their description). */
+function topMerchants(){
+  const k = ym(TODAY), by = new Map();
+  for (const t of S.txns){ if (!counts(t) || ym(t.d)!==k || t.d>TODAY || t.a<=0) continue;
+    const g = catGroup()[t.c]; if (g && g!=='variable' && g!=='fixed') continue;
+    const key = (t.m || t.n || t.raw || t.c || '').trim().toLowerCase(); if (!key) continue;
+    const e = by.get(key) || {t, n:0, a:0}; e.n++; e.a += t.a; if (!e.t.logo && t.logo) e.t = t; by.set(key, e); }
+  const rows = [...by.values()].sort((a,b)=>b.a-a.a).slice(0,8);
+  return `<div class="card" style="margin:0"><h3>Top merchants<span class="sp"></span><span class="legend">${MONL[+k.slice(5)-1]}</span></h3>
+    ${rows.map(e=>`<div class="row tx click" data-act="searchFor" data-q="${esc(label(e.t))}" style="padding:0 4px">${avatar(e.t)}<span class="main"><span class="name">${esc(label(e.t))}</span><span class="meta"><span class="note">${e.n}×</span></span></span><span class="amt">${fmt(e.a,false)}</span></div>`).join('') || '<div class="empty sm">Nothing yet</div>'}</div>`;
+}
 export function vTrends(){
   const y = +TODAY.slice(0,4), py = y-1, lastM = +TODAY.slice(5,7);
   const spend = yr => MON.map((_,i)=>{ const k = `${yr}-${String(i+1).padStart(2,'0')}`; if (!agg()[k]) return null; const m = month(k); return m.fixed + m.variable; });
@@ -202,6 +248,7 @@ export function vTrends(){
     <div class="grid2" style="margin-top:12px">
       <div class="card" style="margin:0"><h3>Biggest changes<span class="sp"></span><span class="legend">${wl} vs ${py}</span></h3>
         ${movers.map(([c,a,b])=>`<div class="row click" data-act="trendPick" data-c="${esc(c)}" style="padding:0 4px"><span class="name">${esc(c)}</span><span class="sub">${fmt(a,false)} → ${fmt(b,false)}</span><span class="amt ${b>a?'':'in'}" style="min-width:70px">${b>a?'+':'−'}${fmt(Math.abs(b-a),false)}</span></div>`).join('')}</div>
+      ${topMerchants()}
       <div class="card" style="margin:0"><h3>Price changes</h3>
         ${changes.map(([c,a,b,d])=>`<div class="row click" data-act="trendPick" data-c="${esc(c)}" style="padding:0 4px"><span class="name">${esc(c)}</span><span class="sub">${shortDate(d)}</span><span class="amt" style="min-width:120px">${fmt(a)} → ${fmt(b)}</span></div>`).join('')}
         ${ppl.length?`<h3 style="margin-top:16px">People</h3>${ppl.sort((a,b)=>b[1]-a[1]).map(([p,v])=>`<div class="row click" data-act="searchFor" data-q="${p}" style="padding:0 4px"><span class="name">${p}</span><span class="amt">${fmt(v,false)}</span></div>`).join('')}`:''}
@@ -215,13 +262,22 @@ export function wireCharts(){
   barChart(document.getElementById('c2'), document.getElementById('t2'), CH.series, k => { UI.q = `"${UI.trendCat}" ${k}`; go('ledger'); }, CH.catBud);
 }
 /* ---------- Knauf ---------- */
+function knaufCard(ks){
+  const y = TODAY.slice(0,4), sum = a => a.reduce((s,t)=>s+t.a,0);
+  const parts = [['Open', sum(ks.open), 'var(--c2)', ks.open.length], ['Approved', sum(ks.approved), 'var(--c1)', ks.approved.length],
+    ['Reimbursed ' + y, sum(ks.reimbursed.filter(t=>t.d.startsWith(y))), 'var(--c3)', ks.reimbursed.filter(t=>t.d.startsWith(y)).length]];
+  const tot = parts.reduce((s,p)=>s+p[1],0) || 1;
+  return `<div class="card kcard"><div class="kbig"><div class="big">${money(ks.outstanding)}</div><div class="cap">out of pocket · ${ks.open.length + ks.approved.length} charges</div></div>
+    <div class="stack">${parts.filter(p=>p[1]>0).map(p=>`<b style="width:${p[1]/tot*100}%;background:${p[2]}" title="${p[0]}: ${money(p[1])}"></b>`).join('')}</div>
+    <div class="slegend">${parts.map(p=>`<span><i style="background:${p[2]}"></i>${p[0]} <b>${money(p[1],false)}</b></span>`).join('')}</div></div>`;
+}
 export function vKnauf(){
   const ks = knaufSummary();
   const sorted = a => [...a].sort((x,y)=>y.d.localeCompare(x.d));
   const selTotal = [...UI.kSel].reduce((s,id)=>s+(txById(id)?.a||0),0);
   const krow = t => `<div class="row click ${UI.sel===t.id?'sel':''}" data-tx="${t.id}">
       <button class="chk ${UI.kSel.has(t.id)?'on':''}" data-act="kSel" data-id="${t.id}"></button>
-      <span class="name">${esc(label(t))}</span><span class="sub">${shortDate(t.d)}</span>${amtCell(t)}</div>`;
+      ${avatar(t)}<span class="name">${esc(label(t))}</span><span class="sub">${shortDate(t.d)}</span>${amtCell(t)}</div>`;
   const reimb = sorted(ks.reimbursed); const ry = {};
   reimb.forEach(t => { const yy = t.d.slice(0,4); ry[yy]=(ry[yy]||0)+t.a; });
   const selKind = [...UI.kSel].map(id=>txById(id)?.k);
@@ -231,7 +287,7 @@ export function vKnauf(){
     : `<button class="btn" data-act="kReopen">Reopen</button>`;
   return `<div class="page"><div class="top"><h1>Knauf</h1><span class="sp"></span>${action}
       <button class="btn" data-act="new" data-k="1">${ic('plus')}New</button></div>
-    <div class="hero"><div class="big">${money(ks.outstanding)}</div><div class="cap">owed</div></div>
+    ${knaufCard(ks)}
     <div class="sec"><h2><span>Open</span><span class="t">${money(ks.openTotal)}</span><span class="sp"></span>${ks.open.length?`<button class="btn ghost" data-act="kAll" data-k="open">Select all</button><button class="btn ghost" data-act="kCopy">${ic('copy')}Copy</button>`:''}</h2>${sorted(ks.open).map(krow).join('') || '<div class="row muted"><span class="name">None</span></div>'}</div>
     <div class="sec"><h2><span>Approved</span><span class="t">${money(ks.approvedTotal)}</span><span class="sp"></span>${ks.approved.length?`<button class="btn ghost" data-act="kAll" data-k="approved">Select all</button>`:''}</h2>${sorted(ks.approved).map(krow).join('') || '<div class="row muted"><span class="name">None</span></div>'}</div>
     ${ks.deposits.length ? `<div class="sec"><h2><span>Reimbursements</span><span class="t">${money(-ks.deposits.reduce((s,t)=>s+t.a,0))}</span></h2>${sorted(ks.deposits).map(d => `<div class="row click ${UI.sel===d.id?'sel':''}" data-tx="${d.id}"><span class="name">${esc(label(d))}</span><span class="sub">${shortDate(d.d)}</span><span class="amt in">+${fmt(Math.abs(d.a))}</span></div>`).join('')}</div>` : ''}

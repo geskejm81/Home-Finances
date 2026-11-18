@@ -4,15 +4,31 @@
   --accent:#5E6AD2;--accent-ink:#4B56BE;--pos:#1F8A4C;--neg:#C2412D;--prev:#C98A2E;
   --good:#1E8449;--warn:#B26B00;--bad:#C0392B;--good-f:#4CAF73;--warn-f:#EDB232;--bad-f:#E0554B;
   --shadow:0 1px 2px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.08);
+    --c1:#2a78d6;--c2:#eb6834;--c3:#1baf7a;--c4:#eda100;--c5:#e87ba4;--c6:#6250d6;--c-other:#b9b8b2;
+  --t1:#7c9cc4;--t2:#c9937a;--t3:#73ad97;--t4:#c4a868;--t5:#c493a8;--t6:#8f88c4;--t7:#8fa9a3;--t8:#b3a28c;
+  color-scheme:light;
   --r:8px;--font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter","Segoe UI",system-ui,sans-serif;
 }
-@media (prefers-color-scheme:dark){:root{
+@media (prefers-color-scheme:dark){:root:where(:not([data-theme=light])){
   --bg:#0E0E0F;--surface:#151516;--raised:#1C1C1E;--hover:#1E1E20;--sel:#22243A;
   --text:#EDEDEF;--text2:#8E8E93;--text3:#5C5C61;--line:#232325;--line2:#2C2C2F;
   --accent:#7480E0;--accent-ink:#9AA3F0;--pos:#4CC27F;--neg:#F0715C;--prev:#BD8A3E;
   --good:#5BC98A;--warn:#E3B04B;--bad:#F07A66;--good-f:#3E9E63;--warn-f:#C99520;--bad-f:#C8483F;
   --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 32px rgba(0,0,0,.5);
-}}
+
+  --c1:#3987e5;--c2:#d95926;--c3:#199e70;--c4:#c98500;--c5:#d55181;--c6:#9085e9;--c-other:#5e5d58;
+  --t1:#6f8db5;--t2:#b3826b;--t3:#649c87;--t4:#ad955b;--t5:#ad8296;--t6:#8079b5;--t7:#7f9893;--t8:#a0907b;
+  color-scheme:dark;}}
+:root[data-theme=dark]{
+  --bg:#0E0E0F;--surface:#151516;--raised:#1C1C1E;--hover:#1E1E20;--sel:#22243A;
+  --text:#EDEDEF;--text2:#8E8E93;--text3:#5C5C61;--line:#232325;--line2:#2C2C2F;
+  --accent:#7480E0;--accent-ink:#9AA3F0;--pos:#4CC27F;--neg:#F0715C;--prev:#BD8A3E;
+  --good:#5BC98A;--warn:#E3B04B;--bad:#F07A66;--good-f:#3E9E63;--warn-f:#C99520;--bad-f:#C8483F;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 32px rgba(0,0,0,.5);
+
+  --c1:#3987e5;--c2:#d95926;--c3:#199e70;--c4:#c98500;--c5:#d55181;--c6:#9085e9;--c-other:#5e5d58;
+  --t1:#6f8db5;--t2:#b3826b;--t3:#649c87;--t4:#ad955b;--t5:#ad8296;--t6:#8079b5;--t7:#7f9893;--t8:#a0907b;
+  color-scheme:dark;}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
 body{font:13.5px/1.45 var(--font);color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;overflow:hidden}
@@ -288,4 +304,60 @@ body.gated .side,body.gated .tabs{display:none!important}
   .reason{width:100%}
   .pop{width:calc(100% - 20px)!important;left:10px!important}
   .toast{bottom:calc(env(safe-area-inset-bottom) + 78px)}
+}
+
+/* ---------- friendlier rows: avatars, category tags ---------- */
+.row.tx{height:54px;gap:12px}
+.av{position:relative;width:30px;height:30px;border-radius:9px;flex:none;display:grid;place-items:center;overflow:hidden;
+  background:color-mix(in srgb,var(--av) 18%,var(--surface));color:var(--av);font-weight:650;font-size:13px}
+.av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:var(--surface)}
+.row.tx .main{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.row.tx .main .name{flex:none}
+.row.tx .meta{display:flex;gap:10px;align-items:center;font-size:12px;color:var(--text2);white-space:nowrap;overflow:hidden}
+.ctag{display:inline-flex;align-items:center;gap:6px}
+.ctag i{width:7px;height:7px;border-radius:50%;flex:none}
+.note{color:var(--text3);overflow:hidden;text-overflow:ellipsis}
+.row .pill svg{width:12px;height:12px}
+/* ---------- Month: hero + donut ---------- */
+.mhead2{display:grid;grid-template-columns:minmax(220px,1fr) 1.6fr;gap:16px;align-items:stretch;margin:4px 0 18px}
+.mhead2 .hero{margin:0;padding:18px 4px;display:flex;flex-direction:column;justify-content:center}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin-top:16px;font-size:13px}
+.kv span{color:var(--text2)}.kv b{font-weight:600;text-align:right;max-width:120px}
+.card.spend{margin:0;padding:14px 16px}
+.seg.sm button{padding:2px 8px;font-size:12px}
+.sbody{display:flex;gap:18px;align-items:center}
+.donut{width:150px;height:150px;flex:none}
+.donut .track{fill:none;stroke:var(--line);stroke-width:13}
+.donut .slice{fill:none;stroke-width:13;cursor:pointer;transition:stroke-width .12s}
+.donut .slice:hover{stroke-width:16}
+.donut .dc{text-anchor:middle;font:600 12px var(--font);fill:var(--text)}
+.donut .ds{text-anchor:middle;font:500 7px var(--font);fill:var(--text3)}
+.legend2{flex:1;min-width:0;display:flex;flex-direction:column}
+.lg{display:grid;grid-template-columns:10px 1fr auto 40px;gap:10px;align-items:center;padding:5px 6px;border-radius:6px;text-align:left;font-size:12.5px}
+.lg:hover{background:var(--hover)}
+.lg i{width:10px;height:10px;border-radius:3px}
+.lg .ln{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lg .lv{font-weight:600}.lg .lp{color:var(--text3);text-align:right}
+.empty.sm{padding:24px 0}
+.mt tr.sprow td{background:var(--bg);padding:6px 10px 6px 50px;text-align:left}
+.mt tr.sprow .spk{display:inline-flex;align-items:center;margin-right:14px}
+/* ---------- Knauf card ---------- */
+.kcard{padding:18px 18px 14px;margin:4px 0 6px}
+.kcard .big{font-size:34px;font-weight:600;letter-spacing:-.02em}
+.kcard .cap{color:var(--text2);margin-top:2px}
+.stack{display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--line);margin:16px 0 10px;gap:2px}
+.stack b{display:block;height:100%}
+.slegend{display:flex;flex-wrap:wrap;gap:16px;font-size:12.5px;color:var(--text2)}
+.slegend span{display:inline-flex;align-items:center;gap:6px}
+.slegend i{width:10px;height:10px;border-radius:3px}
+.slegend b{color:var(--text);font-weight:600}
+/* ---------- sidebar footer ---------- */
+.side .foot{display:flex;align-items:center;gap:4px}
+.side .foot .nav{flex:1}
+@media (max-width:760px){
+  .mhead2{grid-template-columns:1fr;gap:10px}
+  .mhead2 .hero{padding:6px 2px}
+  .sbody{flex-direction:column;align-items:stretch}
+  .donut{width:170px;height:170px;align-self:center}
+  .row.tx{height:60px}
 }
