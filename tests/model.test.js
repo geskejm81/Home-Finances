@@ -56,7 +56,8 @@ test('accepting everything: Knauf deposit clears approved items and stays out of
   run('tx.acceptAll');
   assert.equal(inbox().filter(t => suggest(t).type !== 'none').length, 0);
   assert.equal(knaufSummary().approved.length, 0);
-  close(knaufSummary().outstanding, owed - dep + 214.06 + 18.40);
+  close(knaufSummary().outstanding, owed - dep);                 // Courtyard and Uber wait for a tick
+  assert.equal(knaufSummary().suggested.length, 2);
   close(month(ym(TODAY)).income, income);
 });
 
@@ -150,4 +151,89 @@ test('Knauf deposits are DIRECT-PAY only; payroll stays income', () => {
 
 test('the Plaid function uses the same Knauf rules file', () => {
   assert.equal(readFileSync('supabase/functions/plaid/knauf-rules.js', 'utf8'), readFileSync('src/core/knauf-rules.js', 'utf8'));
+});
+
+import { readXlsx, readCsv, rowsToReport } from '../src/data/report-file.js';
+import { preselect, matchLines, leftovers, reportForDeposit } from '../src/core/knauf.js';
+
+test('reads an approved report export (.xlsx): header block, columns, totals row skipped', async () => {
+  const rows = await readXlsx(readFileSync('tests/fixtures/report-sample.xlsx'));
+  const r = rowsToReport(rows, 'report-sample.xlsx');
+  assert.equal(r.ref, 'R-1001');
+  assert.equal(r.approved, '2026-11-10');
+  assert.equal(r.lines.length, 4);
+  assert.deepEqual(r.lines[0], { d: '2026-10-26', m: 'United Airlines', a: 379.43, type: 'Airfare' });
+  close(r.total, 859.98);
+});
+
+test('reads a .csv export with quoted fields and $ amounts', () => {
+  const r = rowsToReport(readCsv(readFileSync('tests/fixtures/report-sample.csv', 'utf8')), 'x.csv');
+  assert.equal(r.ref, 'R-2002');
+  assert.deepEqual(r.lines.map(l => [l.d, l.m, l.a]), [['2026-10-28', 'Courtyard, Waco', 246.38], ['2026-10-28', 'Hertz', 1237.66]]);
+});
+
+test('deposit helper: oldest first until the next would go over', () => {
+  const list = [{ id: 1, a: 100 }, { id: 2, a: 50 }, { id: 3, a: 80 }];
+  assert.deepEqual(preselect(-170, list), [1, 2]);
+  assert.deepEqual(preselect(-230, list), [1, 2, 3]);
+});
+
+test('report lines match charges by cents and date; identical fares are left to pick; save + pay', () => {
+  fresh();
+  const charges = S.txns.filter(t => t.k === 'approved' || t.k === 'open').slice(0, 2);
+  const twin = { ...charges[0], id: 999001, k: 'open' };            // identical fare, same day
+  S.txns.push(twin);
+  const lines = [
+    { d: charges[0].d, m: charges[0].m, a: charges[0].a, type: 'Airfare' },
+    { d: charges[1].d, m: charges[1].m, a: charges[1].a, type: 'Hotel' },
+    { d: charges[1].d, m: 'Mileage', a: 12.34, type: 'Mileage' },
+  ];
+  const m = matchLines(lines);
+  assert.equal(m[0].ambiguous, true, 'two identical charges → you pick');
+  assert.equal(m[0].pick, null);
+  assert.equal(m[1].pick, charges[1].id);
+  assert.equal(m[2].pick, null);
+  assert.ok(leftovers(lines, [charges[1].id]).every(t => t.id !== charges[1].id));
+  // you pick the first fare; the report is saved and its charges become approved
+  const total = lines.reduce((s, l) => s + l.a, 0);
+  const id = run('report.save', { report: { ref: 'R-9', approved: '2026-11-10', total, lines: lines.map((l, i) => ({ ...l, tx: [charges[0].id, charges[1].id, null][i] })) } });
+  assert.equal(txById(charges[0].id).k, 'approved');
+  assert.equal(txById(charges[0].id).krep, id);
+  // re-upload with the same ref updates instead of duplicating
+  run('report.save', { report: { ref: 'R-9', approved: '2026-11-10', total, lines: lines.map((l, i) => ({ ...l, tx: [charges[0].id, null, null][i] })) } });
+  assert.equal(S.reports.filter(r => r.ref === 'R-9').length, 1);
+  assert.equal(txById(charges[1].id).k, 'open', 'released by the re-upload');
+  // a deposit for the report total pays it
+  const dep = { id: 999002, d: '2026-11-15', m: 'Knauf Insulation Direct-Pay', a: -Math.round(total * 100) / 100, src: 'bank', inbox: 1 };
+  S.txns.push(dep);
+  const hit = reportForDeposit(dep);
+  assert.equal(hit.report.id, id); assert.equal(hit.exact, true);
+  run('report.pay', { reportId: id, deposit: dep.id });
+  assert.equal(txById(charges[0].id).k, 'reimbursed');
+  assert.equal(txById(charges[0].id).kdep, dep.id);
+  run('knauf.unmatch', { id: charges[0].id });
+  assert.equal(txById(charges[0].id).k, 'approved', 'detached charge returns to its report status');
+});
+
+test('suggested Knauf: confirm and dismiss', () => {
+  fresh();
+  run('tx.acceptAll');
+  const s = knaufSummary().suggested.map(t => t.id);
+  run('knauf.confirm', { ids: [s[0]] });
+  assert.equal(txById(s[0]).k, 'open');
+  run('knauf.dismiss', { ids: [s[1]] });
+  assert.equal(txById(s[1]).k, undefined);
+  assert.ok(txById(s[1]).inbox);
+});
+
+import { recurring } from '../src/core/recurring.js';
+
+test('recurring: monthly bills are found; one-offs are not', () => {
+  fresh();
+  const r = recurring();
+  const names = r.map(x => x.name);
+  assert.ok(names.includes('Streamtv'), 'monthly subscription');
+  const st = r.find(x => x.name === 'Streamtv');
+  assert.equal(st.cadence, 'monthly');
+  assert.ok(!names.includes('Annual Membership'), 'yearly with one occurrence is not recurring');
 });

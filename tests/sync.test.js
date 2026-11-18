@@ -5,10 +5,10 @@ import { S, setState, seed } from '../src/core/store.js';
 import { run } from '../src/core/model.js';
 import { createSync, txToRow, rowToTx } from '../src/data/sync.js';
 
-const KEYS = { categories: ['household_id', 'name'], accounts: ['household_id', 'id'], rules: ['household_id', 'match'], projects: ['household_id', 'id'], budgets: ['household_id', 'year', 'rev'], budget_drafts: ['household_id', 'year'], transactions: ['id'] };
+const KEYS = { categories: ['household_id', 'name'], accounts: ['household_id', 'id'], rules: ['household_id', 'match'], projects: ['household_id', 'id'], budgets: ['household_id', 'year', 'rev'], budget_drafts: ['household_id', 'year'], expense_reports: ['id'], expense_report_lines: ['id'], transactions: ['id'] };
 
 function fakeApi() {
-  const db = { households: [{ id: 'hh', name: 'Test', people: ['Alex'] }], categories: [], accounts: [], rules: [], projects: [], budgets: [], budget_drafts: [], transactions: [], plaid_items: [] };
+  const db = { households: [{ id: 'hh', name: 'Test', people: ['Alex'] }], categories: [], accounts: [], rules: [], projects: [], budgets: [], budget_drafts: [], expense_reports: [], expense_report_lines: [], transactions: [], plaid_items: [] };
   const calls = [];
   const api = async (path, { method = 'GET', body, headers = {} } = {}) => {
     calls.push(method + ' ' + path.split('?')[0]);
@@ -37,7 +37,7 @@ function fakeApi() {
   };
   return { api, db, calls };
 }
-const strip = s => JSON.parse(JSON.stringify({ cats: s.cats, txns: s.txns, projects: s.projects, accounts: s.accounts, rules: s.rules, budgets: s.budgets, budgetDrafts: s.budgetDrafts }));
+const strip = s => JSON.parse(JSON.stringify({ cats: s.cats, txns: s.txns, projects: s.projects, accounts: s.accounts, rules: s.rules, budgets: s.budgets, budgetDrafts: s.budgetDrafts, reports: s.reports }));
 
 test('a transaction survives the row mapping unchanged', () => {
   setState(seed());

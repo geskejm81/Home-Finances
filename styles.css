@@ -361,3 +361,29 @@ body.gated .side,body.gated .tabs{display:none!important}
   .donut{width:170px;height:170px;align-self:center}
   .row.tx{height:60px}
 }
+
+/* ---------- Knauf ---------- */
+.kcard .krow1{display:flex;align-items:flex-start;gap:16px}
+.kcard .krow1>div:first-child{flex:1}
+.kstat{text-align:right}.kstat b{display:block;font-size:20px;font-weight:600}.kstat span{color:var(--text2);font-size:12px}
+.icon.ok{color:var(--good)}
+.dep{margin:2px 0 10px 42px;border-left:2px solid var(--line2);padding-left:10px}
+.dep .row.tx{height:46px}
+.depfoot{display:flex;gap:18px;align-items:center;padding:8px 10px;color:var(--text2);font-size:12.5px}
+.depfoot b{color:var(--text)}.depfoot .sp{flex:1}
+.dep .chk{flex:none}
+.row.open>.chev{transform:rotate(90deg)}
+.row>.chev{width:14px;height:14px;color:var(--text3);flex:none;transition:transform .15s}
+.rt td,.rt th{text-align:left}.rt td.num{text-align:right}
+.rt td:nth-child(2){max-width:260px;overflow:hidden;text-overflow:ellipsis}
+.rt tr.amb td{background:color-mix(in srgb,var(--warn-f) 14%,transparent)}
+.rt .pickc select{max-width:320px}
+.kv.rk{grid-template-columns:auto auto auto auto auto auto;justify-content:start;margin:0 0 14px}
+@media (max-width:760px){ .kv.rk{grid-template-columns:auto 1fr} .dep{margin-left:8px} }
+
+.kv.rk b{max-width:none;text-align:left;margin-right:18px}
+.banner{display:flex;gap:10px;align-items:center;padding:10px 12px;margin:0 0 16px;border-radius:8px;background:color-mix(in srgb,var(--warn-f) 16%,var(--surface));border:1px solid color-mix(in srgb,var(--warn-f) 40%,transparent)}
+.banner svg{width:16px;height:16px;flex:none;color:var(--warn)}
+.banner .sp{flex:1}
+.row .sub b{color:var(--text);font-weight:600}
+.row .amt s{color:var(--text3);font-weight:400;margin-right:6px}

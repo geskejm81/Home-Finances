@@ -149,6 +149,7 @@ export function demoState(today) {
     people: PEOPLE,
     budgets: [],
     budgetDrafts: {},
+    reports: [],
     txns: txns.sort((a, b) => a.d.localeCompare(b.d) || a.id - b.id),
     projects: [
       { id: 'p1', year: y - 1, when: 'May', name: 'Exterior Painting', a: 6400 },

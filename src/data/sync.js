@@ -11,7 +11,7 @@ const TABLES = {
   accounts: {
     key: r => r.id, keyCols: ['id'], conflict: 'household_id,id',
     fromState: S => S.accounts.map(a => ({ id: a.id, name: a.name })),
-    toState: rows => rows.map(r => ({ id: r.id, name: r.name })),
+    toState: rows => rows.map(r => clean({ id: r.id, name: r.name, kind: r.kind, mask: r.mask, bal: num(r.balance), avail: num(r.available), limit: num(r.credit_limit), balAt: r.balance_at })),
   },
   rules: {
     key: r => r.match, keyCols: ['match'], conflict: 'household_id,match',
@@ -33,6 +33,16 @@ const TABLES = {
     fromState: S => Object.entries(S.budgetDrafts || {}).map(([y, d]) => ({ year: +y, lines: d.lines })),
     toState: rows => Object.fromEntries(rows.map(r => [r.year, { lines: r.lines }])),
   },
+  expense_reports: {
+    key: r => r.id, keyCols: ['id'], conflict: 'id',
+    fromState: S => (S.reports || []).map(r => ({ id: r.id, report_ref: r.ref, approved_date: r.approved || null, report_total: r.total, deposit_id: r.dep ?? null, source_file: r.file || null })),
+    toState: rows => rows.map(r => clean({ id: r.id, ref: r.report_ref, approved: r.approved_date, total: Number(r.report_total), dep: r.deposit_id == null ? null : Number(r.deposit_id), file: r.source_file, lines: [] })),
+  },
+  expense_report_lines: {
+    key: r => r.id, keyCols: ['id'], conflict: 'id',
+    fromState: S => (S.reports || []).flatMap(r => (r.lines || []).map(l => ({ id: l.id, report_id: r.id, line_date: l.d || null, merchant: l.m || null, amount: l.a, expense_type: l.type || null, transaction_id: l.tx ?? null }))),
+    toState: rows => rows.map(r => clean({ id: r.id, report: r.report_id, d: r.line_date, m: r.merchant, a: Number(r.amount), type: r.expense_type, tx: r.transaction_id == null ? null : Number(r.transaction_id) })),
+  },
   transactions: {
     key: r => String(r.id), keyCols: ['id'], conflict: 'id',
     fromState: S => S.txns.map(txToRow),
@@ -46,7 +56,7 @@ export function txToRow(t) {
   return {
     id: t.id, date: t.d, merchant: t.m ?? null, raw: t.raw ?? null, amount: t.a, category: t.c ?? null, note: t.n ?? null,
     person: t.p ?? null, account: t.acct ?? null, source: t.src || 'manual', inbox: !!t.inbox, excluded: !!t.x,
-    knauf: t.k ?? null, knauf_submitted: t.ks ?? null, knauf_reimbursed: t.kr ?? null, knauf_deposit: t.kdep ?? null,
+    knauf: t.k ?? null, knauf_submitted: t.ks ?? null, knauf_reimbursed: t.kr ?? null, knauf_deposit: t.kdep ?? null, knauf_report: t.krep ?? null, posted_date: t.pd ?? null,
     return_of: t.ret ?? null, split: t.split ?? null, project: t.proj ?? null, external_id: t.ext ?? null,
     logo_url: t.logo ?? null, pfc: t.pfc ?? null, pfc_icon: t.pfci ?? null,
   };
@@ -55,14 +65,15 @@ export function rowToTx(r) {
   const t = {
     id: Number(r.id), d: r.date, m: r.merchant, raw: r.raw, a: Number(r.amount), c: r.category, n: r.note, p: r.person,
     acct: r.account, src: r.source, inbox: r.inbox ? 1 : null, x: r.excluded ? 1 : null, k: r.knauf, ks: r.knauf_submitted,
-    kr: r.knauf_reimbursed, kdep: r.knauf_deposit == null ? null : Number(r.knauf_deposit), ret: r.return_of == null ? null : Number(r.return_of),
+    kr: r.knauf_reimbursed, kdep: r.knauf_deposit == null ? null : Number(r.knauf_deposit), krep: r.knauf_report, pd: r.posted_date, ret: r.return_of == null ? null : Number(r.return_of),
     split: r.split, proj: r.project, ext: r.external_id, logo: r.logo_url, pfc: r.pfc, pfci: r.pfc_icon,
   };
   for (const k in t) if (t[k] == null) delete t[k];
   return t;
 }
 
-const STATE_KEY = { categories: 'cats', accounts: 'accounts', rules: 'rules', projects: 'projects', budgets: 'budgets', budget_drafts: 'budgetDrafts', transactions: 'txns' };
+const STATE_KEY = { categories: 'cats', accounts: 'accounts', rules: 'rules', projects: 'projects', budgets: 'budgets', budget_drafts: 'budgetDrafts', expense_reports: 'reports', expense_report_lines: '_lines', transactions: 'txns' };
+const num = v => v == null ? null : Number(v);
 const sameRow = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 export function createSync(api, { onStatus = () => {} } = {}) {
@@ -86,6 +97,9 @@ export function createSync(api, { onStatus = () => {} } = {}) {
     const [hh] = await api(`households?select=id,name,people&id=eq.${household}`);
     const state = { v: 1, household: { id: hh.id, name: hh.name }, people: hh.people || [] };
     for (const [table, def] of Object.entries(TABLES)) state[STATE_KEY[table]] = def.toState(await selectAll(table));
+    // report lines live inside their report in the app
+    for (const r of state.reports) r.lines = state._lines.filter(l => l.report === r.id).map(({ report, ...l }) => l);
+    delete state._lines;
     // Connected banks are read-only here; the Plaid function manages them.
     state.banks = (await api(`plaid_items?select=item_id,institution,status,last_synced_at&household_id=eq.${household}&order=created_at`)) || [];
     // What the database holds, in the exact shape diff() produces.

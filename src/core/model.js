@@ -2,7 +2,7 @@
 // No DOM here — this file runs in the browser and in `node --test`.
 
 import { GROUPS, MON, MONL, TODAY, addYm, dObj, mkey, norm, shortDate, ym } from './format.js';
-import { isKnaufDeposit } from './knauf-rules.js';
+import { isKnaufDeposit, isKnaufMerchant } from './knauf-rules.js';
 import { S, acctName, catGroup, save, seed, setState, txById } from './store.js';
 
 /* ============================================================
@@ -95,7 +95,7 @@ export function suggest(t){
   }
   if (/payment|thank you|autopay|transfer/.test(n)) return {type:'transfer', label:'Transfer'};
   // 4. Knauf by merchant history (hotels, airlines, rideshare from the Knauf sheet)
-  if (t.a > 0 && knaufMerchants().has(n.split(' ')[0])) return {type:'knauf', label:'Knauf'};
+  if (t.a > 0 && (isKnaufMerchant(t.m, t.raw) || knaufMerchants().has(n.split(' ')[0]))) return {type:'knauf', label:'Knauf?'};
   // 5. Merchant history
   const hist = {};
   for (const o of S.txns) if (o.c && o.m && norm(o.m).split(' ')[0]===n.split(' ')[0] && !o.inbox) hist[o.c]=(hist[o.c]||0)+1;
@@ -113,7 +113,7 @@ let _lastId = 0;
 export function newId(){ _lastId = Math.max(_lastId + 1, Date.now()*1000 + Math.floor(Math.random()*1000)); return _lastId; }
 export const COMMANDS = {
   'tx.accept':     {title:'Accept suggestion', key:'Enter', run:({id}) => accept(id)},
-  'tx.acceptAll':  {title:'Accept all suggestions', run:() => { let n=0; for (const t of inbox()) { const s=suggest(t); if (s.type!=='none'){ accept(t.id); n++; } } return n; }},
+  'tx.acceptAll':  {title:'Accept all suggestions (Knauf ones wait for your tick)', run:() => { let n=0; for (const t of inbox()) { const s=suggest(t); if (s.type==='knauf'){ t.k='suggested'; delete t.inbox; n++; continue; } if (s.type!=='none'){ accept(t.id); n++; } } return n; }},
   'tx.setCategory':{title:'Set category', key:'C', run:({id, c, learn=true}) => {
       const t = txById(id); const G = catGroup();
       if (t.inbox) settleSign(t, c);
@@ -141,11 +141,36 @@ export const COMMANDS = {
   'tx.update':     {title:'Edit transaction', run:({id, ...f}) => { const t = txById(id); for (const k in f){ if (f[k]===''||f[k]==null) delete t[k]; else t[k]=f[k]; } }},
   'tx.setProject': {title:'Move to project', key:'P', run:({id, proj}) => { const t = txById(id); if (proj) { t.proj=proj; delete t.inbox; } else delete t.proj; }},
   'tx.create':     {title:'New transaction', key:'N', run:(f) => { const t = {id:newId(), d:TODAY, a:0, src:'manual', ...f}; S.txns.push(t); return t.id; }},
-  'tx.delete':     {title:'Delete transaction', run:({id}) => { S.txns = S.txns.filter(t=>t.id!==id); S.txns.forEach(t=>{ if (t.ret===id) delete t.ret; if (t.kdep===id){ delete t.kdep; delete t.kr; t.k='open'; } }); }},
+  'tx.delete':     {title:'Delete transaction', run:({id}) => { S.txns = S.txns.filter(t=>t.id!==id); S.txns.forEach(t=>{ if (t.ret===id) delete t.ret; if (t.kdep===id){ delete t.kdep; delete t.kr; t.k = t.krep ? 'approved' : 'open'; } }); (S.reports||[]).forEach(r => r.lines.forEach(l => { if (l.tx===id) l.tx = null; if (r.dep===id) r.dep = null; })); }},
   'knauf.approve': {title:'Mark Knauf items approved', run:({ids}) => { for (const id of ids){ const t=txById(id); t.k='approved'; t.ks=TODAY; } }},
   'knauf.reimburse':{title:'Mark Knauf items reimbursed', run:({ids, deposit}) => {
-      for (const id of ids){ const t=txById(id); t.k='reimbursed'; t.kr = TODAY; if (deposit) t.kdep = deposit; }
+      for (const id of ids){ const t=txById(id); t.k='reimbursed'; t.kr = deposit ? txById(deposit).d : TODAY; if (deposit) t.kdep = deposit; }
       if (deposit){ const d = txById(deposit); d.k='deposit'; d.x = 1; delete d.inbox; }
+  }},
+  'knauf.confirm': {title:'Confirm suggested Knauf charges', run:({ids}) => { for (const id of ids){ const t=txById(id); if (t.k==='suggested'){ t.k='open'; delete t.inbox; } } }},
+  'knauf.dismiss': {title:'Not Knauf: back to the Inbox', run:({ids}) => { for (const id of ids){ const t=txById(id); delete t.k; t.inbox=1; } }},
+  'knauf.unmatch': {title:'Detach a charge from its deposit', run:({id}) => { const t=txById(id); delete t.kdep; delete t.kr; t.k = t.krep ? 'approved' : 'open'; }},
+  'report.save':   {title:'Save an approved expense report', run:({report}) => {
+      S.reports ||= [];
+      const prev = S.reports.find(r => r.ref === report.ref);
+      const id = prev?.id || report.id || crypto.randomUUID();
+      // re-upload replaces the report: release charges it held (unless already paid)
+      for (const t of S.txns) if (t.krep === id && t.k !== 'reimbursed'){ delete t.krep; t.k = 'open'; }
+      const lines = report.lines.map(l => ({id: crypto.randomUUID(), d: l.d || null, m: l.m || '', a: l.a, type: l.type || '', tx: l.tx ?? null}));
+      for (const l of lines) if (l.tx != null){ const t = txById(l.tx); if (!t){ l.tx = null; continue; }
+        t.krep = id; if (t.k !== 'reimbursed'){ t.k = 'approved'; t.ks = report.approved || TODAY; } delete t.inbox; }
+      const r = {id, ref: report.ref, approved: report.approved || null, total: report.total, file: report.file || null, dep: prev?.dep ?? null, lines};
+      if (prev) S.reports[S.reports.indexOf(prev)] = r; else S.reports.push(r);
+      return id;
+  }},
+  'report.pay':    {title:'Match a deposit to an approved report', run:({reportId, deposit}) => {
+      const r = S.reports.find(x => x.id===reportId), d = txById(deposit);
+      r.dep = deposit; d.k = 'deposit'; d.x = 1; delete d.inbox;
+      for (const l of r.lines) if (l.tx != null){ const t = txById(l.tx); if (t){ t.k='reimbursed'; t.kdep=deposit; t.kr=d.d; } }
+  }},
+  'report.delete': {title:'Delete an expense report', run:({id}) => {
+      for (const t of S.txns) if (t.krep === id){ delete t.krep; if (t.k==='approved') t.k='open'; }
+      S.reports = (S.reports||[]).filter(r => r.id !== id);
   }},
   'knauf.reopen':  {title:'Move Knauf item back to open', run:({ids}) => { for (const id of ids){ const t=txById(id); t.k='open'; delete t.ks; delete t.kr; delete t.kdep; } }},
   'project.create':{title:'New project', run:({name, year, a=0, when=''}) => { const p={id:'p'+Date.now().toString(36), name, year, a:+a, when}; S.projects.push(p); return p.id; }},

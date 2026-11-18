@@ -22,5 +22,5 @@ export const UI = {
   projYear: +TODAY.slice(0,4),
   splitDraft: null, more: false,
   budgetYear: +TODAY.slice(5,7) >= 10 ? +TODAY.slice(0,4) + 1 : +TODAY.slice(0,4), budgetReason: '',
-  mode: 'loading', email: '', sent: null, authError: null, saving: null, importDraft: null, bankBusy: false, donutScope: 'all', members: null, membersLoading: false, confirmRemove: null,
+  mode: 'loading', email: '', sent: null, authError: null, saving: null, importDraft: null, bankBusy: false, donutScope: 'all', kDep: null, kDepSel: new Set(), reportDraft: null, members: null, membersLoading: false, confirmRemove: null,
 };

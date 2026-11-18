@@ -8,6 +8,8 @@ import { auth, api } from '../data/supabase.js';
 import { createSync } from '../data/sync.js';
 import { workingLines } from '../core/budget.js';
 import { connectBank, syncBanks } from '../data/bank.js';
+import { readReportFile } from '../data/report-file.js';
+import { matchLines, preselect } from '../core/knauf.js';
 import { listMembers, inviteMember, removeMember } from '../data/members.js';
 import { ledgerBody, ledgerTotal, txRow, vGate, vInbox, vKnauf, vLedger, vMonth, vProjects, vSettings, vTrends, vYear, vBudget, wireCharts } from './views.js';
 import { ic } from './icons.js';
@@ -322,6 +324,22 @@ export const ACT = {
   theme: () => setTheme(isDark() ? 'light' : 'dark'),
   donutScope: a => { UI.donutScope = a.dataset.s; render(); },
   donutPick: a => { const c = a.dataset.c; UI.q = c==='__other' ? UI.month : `"${c}" ${UI.month}`; go('ledger'); },
+  kConfirm: a => { run('knauf.confirm', {ids:[+a.dataset.id]}); },
+  kDismiss: a => { run('knauf.dismiss', {ids:[+a.dataset.id]}); toast('Moved to Inbox', true); },
+  kConfirmAll: () => { const ids = knaufSummary().suggested.map(t=>t.id); run('knauf.confirm', {ids}); toast(`${ids.length} confirmed`, true); },
+  kDepToggle: a => { const id = +a.dataset.id; if (UI.kDep===id){ UI.kDep=null; } else { UI.kDep=id; UI.kDepSel = new Set(preselect(txById(id).a)); } render(); },
+  kDepPick: a => { const id = +a.dataset.id; UI.kDepSel.has(id) ? UI.kDepSel.delete(id) : UI.kDepSel.add(id); render(); },
+  kDepSave: a => { const ids=[...UI.kDepSel]; run('knauf.reimburse', {ids, deposit:+a.dataset.d}); UI.kDepSel.clear(); toast(`${ids.length} charge${ids.length===1?'':'s'} reimbursed`, true); },
+  kPayReport: a => { run('report.pay', {reportId:a.dataset.r, deposit:+a.dataset.d}); toast('Report paid', true); },
+  kUnmatch: a => { run('knauf.unmatch', {id:+a.dataset.id}); },
+  reportCancel: () => { UI.reportDraft = null; render(); },
+  reportApprove: () => {
+    const r = UI.reportDraft;
+    const lines = r.lines.map((l,i) => ({...l, tx: r.picks[i] ?? null}));
+    run('report.save', {report:{ref:r.ref, approved:r.approved, total:r.total, file:r.file, lines}});
+    UI.reportDraft = null; render(); toast(`Report ${r.ref} saved · ${lines.filter(l=>l.tx!=null).length} card charges approved`, true);
+  },
+  reportDelete: a => { run('report.delete', {id:a.dataset.id}); toast('Report deleted', true); },
   importCancel: () => { UI.importDraft=null; render(); },
   importApply: () => { const d = UI.importDraft; UI.importDraft=null; run('data.import', d); toast(`Imported ${d.txns.length.toLocaleString()} transactions`, true); },
   // the following fire from change events
@@ -339,6 +357,8 @@ document.addEventListener('change', e => {
   else if (act==='acctRename'){ if (v.trim()) run('account.rename', {id:a.dataset.id, name:v.trim()}); }
   else if (act==='projEdit'){ const f=a.dataset.f; run('project.update', {id:UI.sel.slice(1), [f]: f==='a'||f==='year' ? +v || 0 : v}); }
   else if (act==='budgetSet'){ const n = parseFloat(v.replace(/[^0-9.]/g,'')); try { run('budget.set', {year:UI.budgetYear, c:a.dataset.c, a: isNaN(n) ? 0 : n}); } catch(err){ toast(err.message); render(); } }
+  else if (act==='reportFile'){ const file = e.target.files?.[0]; if (file) openReport(file); e.target.value=''; }
+  else if (act==='reportPick'){ const i=+a.dataset.i; UI.reportDraft.picks[i] = v ? +v : null; render(); }
   else if (act==='importFile'){
     const file = e.target.files?.[0]; if (!file) return;
     file.text().then(txt => {
@@ -426,6 +446,19 @@ async function loadMembers(){
   try { UI.members = await listMembers(); } catch(e){ UI.members = []; console.error(e); }
   UI.membersLoading = false; if (UI.view==='settings') render();
 }
+/** Read an approved report file and show its preview with proposed matches. */
+async function openReport(file){
+  try {
+    const r = await readReportFile(file);
+    const prev = (S.reports||[]).find(x => x.ref===r.ref);
+    const m = matchLines(r.lines, prev?.id || null);
+    UI.reportDraft = {...r, picks: m.map(x=>x.pick), options: m.map(x=>x.options), ambiguous: m.map(x=>x.ambiguous)};
+    if (UI.view!=='knauf') go('knauf'); else render();
+  } catch(e){ toast(e.message); console.error(e); }
+}
+// Drop a report anywhere on the Knauf screen.
+document.addEventListener('dragover', e => { if (UI.view==='knauf' && UI.mode) e.preventDefault(); });
+document.addEventListener('drop', e => { if (UI.view!=='knauf') return; e.preventDefault(); const f = e.dataTransfer?.files?.[0]; if (f) openReport(f); });
 const bankSummary = r => [r.added && `${r.added} new in Inbox`, r.matched && `${r.matched} matched`].filter(Boolean).join(' · ');
 /** Reload from the database, keeping the current screen. Skipped while edits are still saving. */
 async function reloadLive(){

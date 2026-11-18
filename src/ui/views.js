@@ -3,8 +3,10 @@
 import { GROUPS, MON, MONL, TODAY, addYm, dObj, dayLabel, esc, fmt, money, shortDate, ym } from '../core/format.js';
 import { S, acctName, catGroup, label, txById } from '../core/store.js';
 import { catColor, inChart, topCategories, SLOTS } from '../core/colors.js';
-import { agg, catLabel, counts, inbox, knaufSummary, month, netOf, parts, pivot, projectTotal, returnsOf, searchTx, suggest, typical } from '../core/model.js';
+import { agg, catLabel, counts, depositItems, inbox, knaufSummary, month, netOf, parts, pivot, projectTotal, returnsOf, searchTx, suggest, typical } from '../core/model.js';
 import { UI } from './state.js';
+import { recurring } from '../core/recurring.js';
+import { age, lag, leftovers, payable, reportForDeposit, variance } from '../core/knauf.js';
 import { budgetFor, groupBudgets, isInverse, lockedBudget, revisions, runRate, series, status, suggestBudget, trend, workingLines } from '../core/budget.js';
 import { barChart, donut, lineChart } from './charts.js';
 import { go } from './app.js';
@@ -55,9 +57,9 @@ export function byDay(list, rowFn=txRow, totals=false){
 /* ---------- Inbox ---------- */
 export function vInbox(){
   const list = inbox();
-  if (!list.length) return `<div class="page"><div class="top"><h1>Inbox</h1></div><div class="empty">${ic('check')}<div>All caught up</div></div></div>`;
+  if (!list.length) return `<div class="page">${linkBanner()}<div class="top"><h1>Inbox</h1></div><div class="empty">${ic('check')}<div>All caught up</div></div></div>`;
   const ready = list.filter(t => suggest(t).type!=='none').length;
-  return `<div class="page"><div class="top"><h1>Inbox</h1><span class="sp"></span>
+  return `<div class="page">${linkBanner()}<div class="top"><h1>Inbox</h1><span class="sp"></span>
     ${ready ? `<button class="btn pri" data-act="acceptAll">${ic('check')}Accept ${ready}</button>` : ''}</div>
     ${byDay(list, t => {
       const s = suggest(t), i = list.indexOf(t);
@@ -121,7 +123,7 @@ export function vMonth(){
     return out;
   }).join('');
   const lb = budgetFor(k, 'left', true).amount;
-  return `<div class="page wide-m"><div class="top">
+  return `<div class="page wide-m">${linkBanner()}<div class="top">
       <button class="icon" data-act="month" data-d="-1">${ic('left')}</button>
       <h1>${MONL[mo-1]} ${y}</h1>
       <button class="icon" data-act="month" data-d="1">${ic('chev')}</button><span class="sp"></span>
@@ -193,6 +195,12 @@ export function vLedger(){
 /* ---------- Trends ---------- */
 export let CH = {};
 /** This month's biggest merchants (rows without a merchant group by their description). */
+function recurringCard(){
+  const list = recurring().filter(r => r.cadence !== 'weekly').slice(0, 12);
+  const total = list.filter(r => r.cadence==='monthly').reduce((s,r)=>s+r.amount,0);
+  return `<div class="card" style="margin:0"><h3>Recurring<span class="sp"></span><span class="legend">${money(total,false)} / mo</span></h3>
+    ${list.map(r=>`<div class="row tx click" data-act="searchFor" data-q="${esc(r.name)}" style="padding:0 4px">${avatar(r.t)}<span class="main"><span class="name">${esc(r.name)}</span><span class="meta"><span class="note">${r.cadence} · next ${shortDate(r.next)}</span></span></span><span class="amt">${r.changed!=null?`<s>${fmt(r.changed)}</s>`:''}${fmt(r.amount)}</span></div>`).join('') || '<div class="empty sm">Nothing yet</div>'}</div>`;
+}
 function topMerchants(){
   const k = ym(TODAY), by = new Map();
   for (const t of S.txns){ if (!counts(t) || ym(t.d)!==k || t.d>TODAY || t.a<=0) continue;
@@ -249,6 +257,7 @@ export function vTrends(){
       <div class="card" style="margin:0"><h3>Biggest changes<span class="sp"></span><span class="legend">${wl} vs ${py}</span></h3>
         ${movers.map(([c,a,b])=>`<div class="row click" data-act="trendPick" data-c="${esc(c)}" style="padding:0 4px"><span class="name">${esc(c)}</span><span class="sub">${fmt(a,false)} → ${fmt(b,false)}</span><span class="amt ${b>a?'':'in'}" style="min-width:70px">${b>a?'+':'−'}${fmt(Math.abs(b-a),false)}</span></div>`).join('')}</div>
       ${topMerchants()}
+      ${recurringCard()}
       <div class="card" style="margin:0"><h3>Price changes</h3>
         ${changes.map(([c,a,b,d])=>`<div class="row click" data-act="trendPick" data-c="${esc(c)}" style="padding:0 4px"><span class="name">${esc(c)}</span><span class="sub">${shortDate(d)}</span><span class="amt" style="min-width:120px">${fmt(a)} → ${fmt(b)}</span></div>`).join('')}
         ${ppl.length?`<h3 style="margin-top:16px">People</h3>${ppl.sort((a,b)=>b[1]-a[1]).map(([p,v])=>`<div class="row click" data-act="searchFor" data-q="${p}" style="padding:0 4px"><span class="name">${p}</span><span class="amt">${fmt(v,false)}</span></div>`).join('')}`:''}
@@ -263,34 +272,79 @@ export function wireCharts(){
 }
 /* ---------- Knauf ---------- */
 function knaufCard(ks){
-  const y = TODAY.slice(0,4), sum = a => a.reduce((s,t)=>s+t.a,0);
-  const parts = [['Open', sum(ks.open), 'var(--c2)', ks.open.length], ['Approved', sum(ks.approved), 'var(--c1)', ks.approved.length],
-    ['Reimbursed ' + y, sum(ks.reimbursed.filter(t=>t.d.startsWith(y))), 'var(--c3)', ks.reimbursed.filter(t=>t.d.startsWith(y)).length]];
-  const tot = parts.reduce((s,p)=>s+p[1],0) || 1;
-  return `<div class="card kcard"><div class="kbig"><div class="big">${money(ks.outstanding)}</div><div class="cap">out of pocket · ${ks.open.length + ks.approved.length} charges</div></div>
+  const y = TODAY.slice(0,4), sum = a => a.reduce((s,t)=>s+t.a,0), paidY = ks.reimbursed.filter(t=>t.d.startsWith(y));
+  const parts = [['Open', sum(ks.open), 'var(--c2)'], ['Approved', sum(ks.approved), 'var(--c1)'], ['Reimbursed ' + y, sum(paidY), 'var(--c3)']];
+  const tot = parts.reduce((s,p)=>s+p[1],0) || 1, lg = lag();
+  return `<div class="card kcard"><div class="krow1"><div><div class="big">${money(ks.outstanding)}</div><div class="cap">out of pocket · ${ks.open.length + ks.approved.length} charges</div></div>
+      ${lg != null ? `<div class="kstat"><b>${lg} days</b><span>average payback</span></div>` : ''}</div>
     <div class="stack">${parts.filter(p=>p[1]>0).map(p=>`<b style="width:${p[1]/tot*100}%;background:${p[2]}" title="${p[0]}: ${money(p[1])}"></b>`).join('')}</div>
     <div class="slegend">${parts.map(p=>`<span><i style="background:${p[2]}"></i>${p[0]} <b>${money(p[1],false)}</b></span>`).join('')}</div></div>`;
 }
+const reportRef = id => (S.reports||[]).find(r => r.id===id)?.ref;
+function depositDetail(d){
+  const items = depositItems(d);
+  if (items.length){
+    const v = variance(d, items.map(t=>t.id));
+    return `<div class="dep">${items.map(t=>`<div class="row tx">${avatar(t)}<span class="main"><span class="name">${esc(label(t))}</span><span class="meta"><span class="note">${shortDate(t.d)}${t.krep?' · '+esc(reportRef(t.krep)||''):''}</span></span></span><span class="amt">${fmt(t.a)}</span><button class="icon" data-act="kUnmatch" data-id="${t.id}" title="Detach">${ic('close')}</button></div>`).join('')}
+      <div class="depfoot"><span>Matched <b>${money(items.reduce((s,t)=>s+t.a,0))}</b></span><span>Variance <b class="${Math.abs(v)<0.005?'':'s-y'}">${money(v)}</b></span></div></div>`;
+  }
+  const hit = reportForDeposit(d), list = payable(), sel = UI.kDepSel;
+  const selSum = [...sel].reduce((s,id)=>s+(txById(id)?.a||0),0);
+  return `<div class="dep">
+    ${hit ? `<div class="callout">${ic('knauf')}<span class="sp">Report ${esc(hit.report.ref)} · ${money(hit.report.total)} · variance ${money(Math.abs(d.a)-hit.report.total)}</span><button class="btn ${hit.exact?'pri':''}" data-act="kPayReport" data-r="${hit.report.id}" data-d="${d.id}">Match report</button></div>` : ''}
+    ${list.map(t=>`<div class="row tx click" data-act="kDepPick" data-id="${t.id}"><span class="chk ${sel.has(t.id)?'on':''}"></span>${avatar(t)}<span class="main"><span class="name">${esc(label(t))}</span><span class="meta"><span class="note">${shortDate(t.d)} · ${t.k}</span></span></span><span class="amt">${fmt(t.a)}</span></div>`).join('') || '<div class="row muted"><span class="name">No open or approved charges</span></div>'}
+    <div class="depfoot"><span>Selected <b>${money(selSum)}</b></span><span>Variance <b>${money(Math.abs(d.a)-selSum)}</b></span><span class="sp"></span>
+      <button class="btn pri" data-act="kDepSave" data-d="${d.id}" ${sel.size?'':'disabled'}>Match ${sel.size} charge${sel.size===1?'':'s'}</button></div></div>`;
+}
+function vReportPreview(){
+  const r = UI.reportDraft, prev = (S.reports||[]).find(x => x.ref===r.ref);
+  const optLabel = t => `${label(t)} · ${shortDate(t.d)}${t.k ? '' : ' · not Knauf yet'}`;
+  const rows = r.lines.map((l,i) => {
+    const opts = r.options[i].map(id => txById(id)).filter(Boolean);
+    return `<tr class="${r.ambiguous[i] && r.picks[i]==null ? 'amb' : ''}"><td>${l.d ? shortDate(l.d) : '–'}</td><td title="${esc(l.m)}">${esc(l.m)}</td><td>${esc(l.type)}</td><td class="num">${fmt(l.a)}</td>
+      <td class="pickc">${opts.length ? `<select class="sel" data-act="reportPick" data-i="${i}"><option value="">No card charge</option>${opts.map(t=>`<option value="${t.id}" ${r.picks[i]===t.id?'selected':''}>${esc(optLabel(t))}</option>`).join('')}</select>` : '<span class="dim">No card charge</span>'}</td></tr>`;
+  }).join('');
+  const matched = r.picks.filter(x=>x!=null).length, left = leftovers(r.lines, r.picks.filter(x=>x!=null));
+  return `<div class="page wide-m"><div class="top"><button class="icon" data-act="reportCancel">${ic('left')}</button><h1>Report ${esc(r.ref)}</h1>
+      <span class="pill">${r.approved ? 'Approved ' + shortDate(r.approved) : 'Approved'}</span><span class="sp"></span>
+      <button class="btn ghost" data-act="reportCancel">Cancel</button><button class="btn pri" data-act="reportApprove">${prev ? 'Update report' : 'Save as approved'}</button></div>
+    <div class="kv rk"><span>Total</span><b>${money(r.total)}</b><span>Card charges</span><b>${matched} of ${r.lines.length}</b><span>File</span><b>${esc(r.file||'')}</b></div>
+    <div class="tbl"><table class="rt"><thead><tr><th>Date</th><th>Merchant</th><th>Type</th><th>Amount</th><th>Card charge</th></tr></thead><tbody>${rows}</tbody></table></div>
+    ${left.length ? `<div class="sec"><h2><span>Open charges in these dates, not on this report</span><span class="t">${money(left.reduce((s,t)=>s+t.a,0))}</span></h2>${left.map(t=>txRow(t)).join('')}</div>` : ''}
+  </div>`;
+}
 export function vKnauf(){
+  if (UI.reportDraft) return vReportPreview();
   const ks = knaufSummary();
   const sorted = a => [...a].sort((x,y)=>y.d.localeCompare(x.d));
   const selTotal = [...UI.kSel].reduce((s,id)=>s+(txById(id)?.a||0),0);
-  const krow = t => `<div class="row click ${UI.sel===t.id?'sel':''}" data-tx="${t.id}">
+  const meta = t => `${shortDate(t.d)}${t.k==='open' ? ` · ${age(t)} days` : ''}${t.krep ? ' · ' + esc(reportRef(t.krep)||'') : ''}${t.acct ? ' · ' + esc(acctName(t.acct)) : ''}`;
+  const krow = t => `<div class="row tx click ${UI.sel===t.id?'sel':''}" data-tx="${t.id}">
       <button class="chk ${UI.kSel.has(t.id)?'on':''}" data-act="kSel" data-id="${t.id}"></button>
-      ${avatar(t)}<span class="name">${esc(label(t))}</span><span class="sub">${shortDate(t.d)}</span>${amtCell(t)}</div>`;
+      ${avatar(t)}<span class="main"><span class="name">${esc(label(t))}</span><span class="meta"><span class="note">${meta(t)}</span></span></span>${amtCell(t)}</div>`;
+  const srow = t => `<div class="row tx click ${UI.sel===t.id?'sel':''}" data-tx="${t.id}">${avatar(t)}<span class="main"><span class="name">${esc(label(t))}</span><span class="meta"><span class="note">${meta(t)}</span></span></span>
+      <span class="amt">${fmt(t.a)}</span><button class="icon ok" data-act="kConfirm" data-id="${t.id}" title="Knauf">${ic('check')}</button><button class="icon" data-act="kDismiss" data-id="${t.id}" title="Not Knauf">${ic('close')}</button></div>`;
   const reimb = sorted(ks.reimbursed); const ry = {};
   reimb.forEach(t => { const yy = t.d.slice(0,4); ry[yy]=(ry[yy]||0)+t.a; });
   const selKind = [...UI.kSel].map(id=>txById(id)?.k);
   const action = !UI.kSel.size ? '' : selKind.every(k=>k==='open')
     ? `<button class="btn pri" data-act="kApprove">Approved ${money(selTotal)}</button>`
-    : selKind.every(k=>k==='approved') ? `<button class="btn pri" data-act="kReimburse">Reimbursed ${money(selTotal)}</button>`
     : `<button class="btn" data-act="kReopen">Reopen</button>`;
+  const none = '<div class="row muted"><span class="name">None</span></div>';
+  const reports = [...(S.reports||[])].sort((a,b)=>String(b.approved||'').localeCompare(String(a.approved||'')));
   return `<div class="page"><div class="top"><h1>Knauf</h1><span class="sp"></span>${action}
+      <label class="btn">${ic('plus')}Report<input type="file" accept=".xlsx,.csv" data-act="reportFile" hidden></label>
       <button class="btn" data-act="new" data-k="1">${ic('plus')}New</button></div>
     ${knaufCard(ks)}
-    <div class="sec"><h2><span>Open</span><span class="t">${money(ks.openTotal)}</span><span class="sp"></span>${ks.open.length?`<button class="btn ghost" data-act="kAll" data-k="open">Select all</button><button class="btn ghost" data-act="kCopy">${ic('copy')}Copy</button>`:''}</h2>${sorted(ks.open).map(krow).join('') || '<div class="row muted"><span class="name">None</span></div>'}</div>
-    <div class="sec"><h2><span>Approved</span><span class="t">${money(ks.approvedTotal)}</span><span class="sp"></span>${ks.approved.length?`<button class="btn ghost" data-act="kAll" data-k="approved">Select all</button>`:''}</h2>${sorted(ks.approved).map(krow).join('') || '<div class="row muted"><span class="name">None</span></div>'}</div>
-    ${ks.deposits.length ? `<div class="sec"><h2><span>Reimbursements</span><span class="t">${money(-ks.deposits.reduce((s,t)=>s+t.a,0))}</span></h2>${sorted(ks.deposits).map(d => `<div class="row click ${UI.sel===d.id?'sel':''}" data-tx="${d.id}"><span class="name">${esc(label(d))}</span><span class="sub">${shortDate(d.d)}</span><span class="amt in">+${fmt(Math.abs(d.a))}</span></div>`).join('')}</div>` : ''}
+    ${ks.suggested.length ? `<div class="sec"><h2><span>To confirm</span><span class="t">${money(ks.suggested.reduce((s,t)=>s+t.a,0))}</span><span class="sp"></span><button class="btn ghost" data-act="kConfirmAll">Confirm all</button></h2>${sorted(ks.suggested).map(srow).join('')}</div>` : ''}
+    <div class="sec"><h2><span>Open</span><span class="t">${money(ks.openTotal)}</span><span class="sp"></span>${ks.open.length?`<button class="btn ghost" data-act="kAll" data-k="open">Select all</button><button class="btn ghost" data-act="kCopy">${ic('copy')}Copy</button>`:''}</h2>${[...ks.open].sort((a,b)=>a.d.localeCompare(b.d)).map(krow).join('') || none}</div>
+    <div class="sec"><h2><span>Approved</span><span class="t">${money(ks.approvedTotal)}</span></h2>${sorted(ks.approved).map(krow).join('') || none}</div>
+    ${ks.deposits.length ? `<div class="sec"><h2><span>Reimbursements</span><span class="t">${money(-ks.deposits.reduce((s,t)=>s+t.a,0))}</span></h2>${sorted(ks.deposits).map(d => {
+      const items = depositItems(d), open = UI.kDep===d.id;
+      const status = items.length ? `variance ${money(variance(d, items.map(t=>t.id)))}` : 'to match';
+      return `<div class="row tx click ${open?'open':''}" data-act="kDepToggle" data-id="${d.id}">${avatar(d)}<span class="main"><span class="name">${esc(label(d))}</span><span class="meta"><span class="note">${shortDate(d.d)} · ${items.length ? items.length + ' charges · ' : ''}${status}</span></span></span><span class="amt in">+${fmt(Math.abs(d.a))}</span>${ic('chev','chev')}</div>${open ? depositDetail(d) : ''}`;
+    }).join('')}</div>` : ''}
+    ${reports.length ? `<div class="sec"><h2><span>Reports</span></h2>${reports.map(r => `<div class="row"><span class="name">${esc(r.ref)}</span><span class="sub">${r.approved ? shortDate(r.approved) : ''} · ${r.lines.filter(l=>l.tx!=null).length}/${r.lines.length} card</span><span class="pill ${r.dep?'':'k'}">${r.dep ? 'Paid' : 'Waiting'}</span><span class="amt">${fmt(r.total)}</span>${r.dep ? '' : `<button class="icon" data-act="reportDelete" data-id="${r.id}" title="Delete">${ic('trash')}</button>`}</div>`).join('')}</div>` : ''}
     <div class="sec"><h2 class="click" data-act="kShowR" style="cursor:pointer"><span>Reimbursed</span><span class="t">${Object.entries(ry).sort().reverse().map(([yy,v])=>`${yy} ${money(v,false)}`).join(' · ')}</span><span class="sp"></span>${ic('chev','chev')}</h2>
       ${UI.showReimbursed ? reimb.map(krow).join('') : ''}</div></div>`;
 }
@@ -309,6 +363,21 @@ export function vProjects(){
 }
 
 /* ---------- Settings ---------- */
+const ago = iso => { if (!iso) return ''; const m = Math.round((Date.now() - Date.parse(iso)) / 6e4);
+  return m < 1 ? 'just now' : m < 60 ? `${m}m ago` : m < 1440 ? `${Math.round(m/60)}h ago` : `${Math.round(m/1440)}d ago`; };
+/** Balance with its age. Cards: amount owed and credit left. */
+function balanceText(a){
+  if (a.bal == null) return '';
+  const age = `<span class="dim"> · ${ago(a.balAt)}</span>`;
+  if (a.kind==='credit') return `<span class="sub">owe <b>${money(a.bal,false)}</b>${a.avail!=null?` · ${money(a.avail,false)} available`:''}${age}</span>`;
+  return `<span class="sub"><b>${money(a.bal,false)}</b>${age}</span>`;
+}
+/** Shown at the top of Inbox and Month when a bank needs signing in again. */
+export function linkBanner(){
+  const bad = (S.banks||[]).filter(b => b.status && b.status!=='ok');
+  if (!bad.length || UI.mode!=='live') return '';
+  return bad.map(b => `<div class="banner">${ic('knauf')}<span class="sp"><b>${esc(b.institution||'A bank')}</b> needs you to sign in again. Its transactions are missing from totals until then.</span><button class="btn pri" data-act="relinkBank" data-id="${esc(b.item_id)}">Reconnect</button></div>`).join('');
+}
 export function vSettings(){
   return `<div class="page"><div class="top"><h1>Settings</h1></div>
     ${UI.mode==='live' ? `<div class="sec"><h2>Members</h2>
@@ -320,7 +389,7 @@ export function vSettings(){
     <div class="sec"><h2>Rules</h2>${S.rules.map(r=>`<div class="row"><span class="name">${esc(r.m)}</span><span class="sub">${r.x?'Excluded':r.k?'Knauf':esc(r.c)}</span><button class="icon" data-act="ruleDel" data-m="${esc(r.m)}">${ic('close')}</button></div>`).join('')}</div>
     <div class="sec"><h2><span>Accounts</span><span class="sp"></span>${UI.mode==='live' ? `<button class="btn ghost" data-act="connectBank" ${UI.bankBusy?'disabled':''}>${ic('plus')}${UI.bankBusy?'Connecting…':'Connect bank'}</button>` : ''}</h2>
       ${(S.banks||[]).map(b=>`<div class="row"><span class="name">${esc(b.institution||'Bank')}</span>${b.status==='ok' ? `<span class="sub">${b.last_synced_at ? new Date(b.last_synced_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : ''}</span>` : `<button class="btn" data-act="relinkBank" data-id="${esc(b.item_id)}">Reconnect</button>`}</div>`).join('')}
-      ${S.accounts.map(a=>`<div class="row"><input class="name" value="${esc(a.name)}" data-act="acctRename" data-id="${a.id}"></div>`).join('')}</div>
+      ${S.accounts.map(a=>`<div class="row"><input class="name" value="${esc(a.name)}" data-act="acctRename" data-id="${a.id}">${balanceText(a)}</div>`).join('')}</div>
     <div class="sec"><h2>Data</h2>
       ${UI.importDraft ? `<div class="row"><span class="name">${UI.importDraft.txns.length.toLocaleString()} transactions · ${UI.importDraft.cats.length} categories</span><button class="btn ghost" data-act="importCancel">Cancel</button><button class="btn pri" data-act="importApply">Replace all</button></div>`
         : `<label class="row click"><span class="name">Import</span><input type="file" accept=".json,application/json" data-act="importFile" hidden><span class="sub">${ic('plus')}</span></label>`}

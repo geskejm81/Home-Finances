@@ -9,7 +9,7 @@
 
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { reconcile, MATCH_DAYS } from './match.js';
-import { isKnaufDeposit } from './knauf-rules.js';
+import { isKnaufDeposit, isKnaufMerchant, OWN_TRANSFER } from './knauf-rules.js';
 
 const PLAID_URL = 'https://production.plaid.com';
 const cors = {
@@ -33,6 +33,9 @@ async function plaid(path: string, body: Record<string, unknown>) {
   if (!r.ok) throw new PlaidError(d.error_message || d.error_code || `Plaid ${path} failed`, d.error_code);
   return d;
 }
+
+// Spending counts on the day you bought it; the posting date is kept alongside.
+const when = (t: any) => ({ date: t.authorized_date || t.date, posted_date: t.date });
 
 // Logo and category icon for a Plaid transaction.
 const visuals = (t: any) => ({
@@ -71,9 +74,14 @@ async function saveAccounts(db: SupabaseClient, hh: string, access_token: string
   }));
   // ignoreDuplicates keeps any nickname already given to an account
   if (rows.length) await db.from('accounts').upsert(rows, { onConflict: 'household_id,id', ignoreDuplicates: true });
+  const at = new Date().toISOString();
+  for (const a of accounts) await db.from('accounts').update({
+    kind: a.type, mask: a.mask, balance: a.balances?.current ?? null, available: a.balances?.available ?? null,
+    credit_limit: a.balances?.limit ?? null, balance_at: at,
+  }).eq('household_id', hh).eq('id', a.account_id);
 }
 
-async function syncItem(db: SupabaseClient, hh: string, item_id: string, start: string) {
+async function syncItem(db: SupabaseClient, hh: string, item_id: string, start: string, institution?: string) {
   const { data: tok } = await db.from('plaid_tokens').select('access_token,cursor').eq('item_id', item_id).single();
   if (!tok) throw new Error('Missing bank token');
   let cursor = tok.cursor || undefined, has_more = true;
@@ -84,7 +92,7 @@ async function syncItem(db: SupabaseClient, hh: string, item_id: string, start: 
     cursor = d.next_cursor; has_more = d.has_more;
   }
 
-  const posted = added.filter(t => !t.pending && t.date >= start);
+  const posted = added.filter(t => !t.pending && (t.authorized_date || t.date) >= start);
   let inserted = 0, matched = 0, deposits = 0;
   if (posted.length) {
     // skip anything already stored (re-sync after a reset)
@@ -94,7 +102,7 @@ async function syncItem(db: SupabaseClient, hh: string, item_id: string, start: 
     const all = posted.filter(t => !seen.has(t.transaction_id));
     // Knauf expense reimbursements: kept out of income and the Inbox; matched to charges in the app.
     const depositRows = all.filter(t => t.amount < 0 && isKnaufDeposit(t.name)).map(t => ({
-      id: newId(), household_id: hh, date: t.date, merchant: t.merchant_name || t.name, raw: t.name, amount: t.amount,
+      id: newId(), household_id: hh, ...when(t), merchant: t.merchant_name || t.name, raw: t.name, amount: t.amount,
       account: t.account_id, source: 'bank', inbox: false, excluded: true, knauf: 'deposit', external_id: t.transaction_id, ...visuals(t),
     }));
     if (depositRows.length) { const { error } = await db.from('transactions').insert(depositRows); if (error) throw new Error(error.message); }
@@ -115,20 +123,25 @@ async function syncItem(db: SupabaseClient, hh: string, item_id: string, start: 
     }));
     const byId = new Map(fresh.map(t => [t.transaction_id, t]));
     const { matches, unmatched } = reconcile(
-      fresh.map(t => ({ external_id: t.transaction_id, date: t.date, amount: t.amount })), candidates);
+      fresh.map(t => ({ external_id: t.transaction_id, date: when(t).date, amount: t.amount })), candidates);
 
     for (const m of matches) {
       const t = byId.get(m.external_id);
       await db.from('transactions').update({
-        external_id: t.transaction_id, merchant: t.merchant_name || t.name, raw: t.name, account: t.account_id, ...visuals(t),
+        external_id: t.transaction_id, merchant: t.merchant_name || t.name, raw: t.name, account: t.account_id, posted_date: t.date, ...visuals(t),
       }).eq('id', m.id).eq('household_id', hh);
     }
     matched = matches.length;
 
-    const rows = unmatched.map(x => byId.get(x)).map(t => ({
-      id: newId(), household_id: hh, date: t.date, merchant: t.merchant_name || t.name, raw: t.name,
-      amount: t.amount, account: t.account_id, source: 'bank', inbox: true, external_id: t.transaction_id, ...visuals(t),
-    }));
+    const rows = unmatched.map(x => byId.get(x)).map(t => {
+      const base = { id: newId(), household_id: hh, ...when(t), merchant: t.merchant_name || t.name, raw: t.name,
+        amount: t.amount, account: t.account_id, source: 'bank', inbox: true, external_id: t.transaction_id, ...visuals(t) };
+      // Own-account transfers and card payments are never spending.
+      if (OWN_TRANSFER.has(t.personal_finance_category?.detailed)) return { ...base, inbox: false, excluded: true };
+      // United / Marriott brands: suggested as Knauf, confirmed by you on the Knauf screen.
+      if (t.amount > 0 && isKnaufMerchant(t.merchant_name, t.name)) return { ...base, inbox: false, knauf: 'suggested' };
+      return base;
+    });
     for (let i = 0; i < rows.length; i += 500) {
       const { error } = await db.from('transactions').insert(rows.slice(i, i + 500));
       if (error) throw new Error(error.message);
@@ -138,7 +151,7 @@ async function syncItem(db: SupabaseClient, hh: string, item_id: string, start: 
 
   // Corrections from the bank only touch rows nobody has reviewed yet.
   for (const t of modified.filter(t => !t.pending)) {
-    await db.from('transactions').update({ date: t.date, amount: t.amount, raw: t.name, ...visuals(t) })
+    await db.from('transactions').update({ ...when(t), amount: t.amount, raw: t.name, ...visuals(t) })
       .eq('household_id', hh).eq('external_id', t.transaction_id).eq('inbox', true);
   }
   const gone = removed.map(r => r.transaction_id);
@@ -149,6 +162,7 @@ async function syncItem(db: SupabaseClient, hh: string, item_id: string, start: 
 
   await db.from('plaid_tokens').update({ cursor }).eq('item_id', item_id);
   await enrich(db, hh, tok.access_token).catch(() => 0);   // best effort; never blocks a sync
+  await saveAccounts(db, hh, tok.access_token, institution).catch(() => 0);   // refresh balances
   await db.from('plaid_items').update({ status: 'ok', last_error: null, last_synced_at: new Date().toISOString() }).eq('item_id', item_id);
   return { added: inserted, matched, deposits, removed: gone.length };
 }
@@ -196,7 +210,7 @@ Deno.serve(async (req) => {
       const total = { added: 0, matched: 0, deposits: 0, removed: 0, banks: [] as unknown[] };
       for (const it of items || []) {
         try {
-          const r = await syncItem(db, hh, it.item_id, start);
+          const r = await syncItem(db, hh, it.item_id, start, it.institution);
           total.added += r.added; total.matched += r.matched; total.deposits += r.deposits; total.removed += r.removed;
           total.banks.push({ institution: it.institution, status: 'ok' });
         } catch (e) {
