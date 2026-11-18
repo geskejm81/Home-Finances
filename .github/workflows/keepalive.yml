@@ -1,0 +1,18 @@
+name: Keep database awake
+
+# Supabase pauses free projects after about a week without database activity.
+# One tiny query a day keeps the app available.
+on:
+  schedule:
+    - cron: '17 11 * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping
+        run: |
+          curl -sf -X POST "https://ctzndfvfehdgwppofiru.supabase.co/rest/v1/rpc/ping" \
+            -H "apikey: sb_publishable_C7moKJpGnDK_XbZO0R1Oyw_vTXCKscN" \
+            -H "Content-Type: application/json" -d '{}'

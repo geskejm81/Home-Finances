@@ -38,7 +38,7 @@ test('inbox suggestions', () => {
   assert.equal(suggest(byName('Uber')).type, 'knauf');
   assert.deepEqual(suggest(byName('Kroger')), { type: 'cat', c: 'Groceries', label: 'Groceries' });
   assert.equal(suggest(byName('Target Card payment')).type, 'transfer');
-  const dep = byName('Knauf Insulation'), s = suggest(dep);
+  const dep = byName('Knauf Insulation Direct-Pay'), s = suggest(dep);
   assert.equal(s.type, 'reimb');
   close(s.ids.reduce((a, id) => a + txById(id).a, 0), -dep.a);
 });
@@ -49,13 +49,13 @@ test('subset match finds exact cents', () => {
   assert.equal(subsetMatch(items, 999), null);
 });
 
-test('accepting everything: Knauf deposit clears submitted items and stays out of income', () => {
+test('accepting everything: Knauf deposit clears approved items and stays out of income', () => {
   fresh();
   const income = month(ym(TODAY)).income;
-  const owed = knaufSummary().outstanding, dep = -byName('Knauf Insulation').a;
+  const owed = knaufSummary().outstanding, dep = -byName('Knauf Insulation Direct-Pay').a;
   run('tx.acceptAll');
   assert.equal(inbox().filter(t => suggest(t).type !== 'none').length, 0);
-  assert.equal(knaufSummary().submitted.length, 0);
+  assert.equal(knaufSummary().approved.length, 0);
   close(knaufSummary().outstanding, owed - dep + 214.06 + 18.40);
   close(month(ym(TODAY)).income, income);
 });
@@ -133,4 +133,21 @@ test('budget: draft → lock → revise needs a reason; locked budget drives bud
   assert.equal(lockedBudget(y).rev, 2);
   assert.equal(budgetFor(ym(TODAY), 'Groceries').amount, lines.Groceries + 100);
   assert.equal(S.budgets.length, 2, 'the first revision is kept');
+});
+
+import { readFileSync } from 'node:fs';
+import { isKnaufDeposit } from '../src/core/knauf-rules.js';
+
+test('Knauf deposits are DIRECT-PAY only; payroll stays income', () => {
+  assert.ok(isKnaufDeposit('KNAUF INSULATION DIRECT-PAY PPD ID: 1234'));
+  assert.ok(isKnaufDeposit('Knauf Insulation Direct Pay'));
+  assert.equal(isKnaufDeposit('KNAUF INSULATION PAYROLL PPD ID: 1234'), false);
+  assert.equal(isKnaufDeposit('KNAUF INSULATION EXP REIMB'), false);
+  fresh();
+  const pay = { id: -1, m: 'Knauf Insulation', raw: 'KNAUF INSULATION PAYROLL', a: -6742, inbox: 1 };
+  assert.notEqual(suggest(pay).type, 'reimb');
+});
+
+test('the Plaid function uses the same Knauf rules file', () => {
+  assert.equal(readFileSync('supabase/functions/plaid/knauf-rules.js', 'utf8'), readFileSync('src/core/knauf-rules.js', 'utf8'));
 });

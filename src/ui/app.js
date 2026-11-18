@@ -2,7 +2,7 @@
 
 import { GROUPS, TODAY, addYm, dObj, esc, fmt, money, norm, shortDate, ym } from '../core/format.js';
 import { S, acctName, catGroup, label, load, seed, setState, txById } from '../core/store.js';
-import { COMMANDS, inbox, knaufSummary, month, netOf, onChange, pivot, projectTotal, returnsOf, run, searchTx, suggest, typical, undo } from '../core/model.js';
+import { COMMANDS, depositItems, inbox, knaufSummary, month, netOf, onChange, pivot, projectTotal, returnsOf, run, searchTx, suggest, typical, undo } from '../core/model.js';
 import { UI, VIEWS } from './state.js';
 import { auth, api } from '../data/supabase.js';
 import { createSync } from '../data/sync.js';
@@ -109,7 +109,7 @@ export function renderPanel(){
       </div>` : ''}
       ${orig ? `<div class="linked"><div class="day">Return of</div>${txRow(orig)}</div>` : ''}
       ${rets.length ? `<div class="linked"><div class="day">Returns<span class="sp"></span><span class="t">net ${fmt(netOf(t))}</span></div>${rets.map(r=>txRow(r)).join('')}</div>` : ''}
-      ${t.k==='deposit' && t.kids ? `<div class="linked"><div class="day">Reimbursed</div>${t.kids.map(id=>txById(id)).filter(Boolean).map(r=>txRow(r)).join('')}</div>` : ''}
+      ${t.k==='deposit' && depositItems(t).length ? `<div class="linked"><div class="day">Reimbursed</div>${depositItems(t).map(r=>txRow(r)).join('')}</div>` : ''}
     </div>`;
 }
 export function renderProjectPanel(p, id){
@@ -266,7 +266,7 @@ export const ACT = {
   searchFor: a => { UI.q = a.dataset.q; go('ledger'); },
   kSel: a => { const id=+a.dataset.id; UI.kSel.has(id)?UI.kSel.delete(id):UI.kSel.add(id); render(); },
   kAll: a => { const ks = knaufSummary(); const ids = ks[a.dataset.k].map(t=>t.id); const all = ids.every(id=>UI.kSel.has(id)); UI.kSel.clear(); if (!all) ids.forEach(id=>UI.kSel.add(id)); render(); },
-  kSubmit: () => { const ids=[...UI.kSel]; UI.kSel.clear(); run('knauf.submit', {ids}); toast(`${ids.length} submitted`, true); },
+  kApprove: () => { const ids=[...UI.kSel]; UI.kSel.clear(); run('knauf.approve', {ids}); toast(`${ids.length} approved`, true); },
   kReimburse: () => { const ids=[...UI.kSel]; UI.kSel.clear(); run('knauf.reimburse', {ids}); toast(`${ids.length} reimbursed`, true); },
   kReopen: () => { const ids=[...UI.kSel]; UI.kSel.clear(); run('knauf.reopen', {ids}); },
   kShowR: () => { UI.showReimbursed = !UI.showReimbursed; render(); },

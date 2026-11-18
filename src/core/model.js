@@ -2,6 +2,7 @@
 // No DOM here — this file runs in the browser and in `node --test`.
 
 import { GROUPS, MON, MONL, TODAY, addYm, dObj, mkey, norm, shortDate, ym } from './format.js';
+import { isKnaufDeposit } from './knauf-rules.js';
 import { S, acctName, catGroup, save, seed, setState, txById } from './store.js';
 
 /* ============================================================
@@ -36,16 +37,19 @@ export function typical(k, key, isGroup){
   return n ? s/n : 0;
 }
 export function knaufSummary(){
-  const out = {open:[], submitted:[], reimbursed:[], deposits:[]};
+  // Knauf statuses: suggested → open → approved → reimbursed. A deposit row is the reimbursement itself.
+  const out = {suggested:[], open:[], approved:[], reimbursed:[], deposits:[]};
   for (const t of S.txns){ if (!t.k) continue; (out[t.k==='deposit'?'deposits':t.k] || []).push(t); }
   const sum = a => a.reduce((s,t)=>s+t.a,0);
-  out.outstanding = sum(out.open) + sum(out.submitted);
-  out.openTotal = sum(out.open); out.submittedTotal = sum(out.submitted);
+  out.outstanding = sum(out.open) + sum(out.approved);
+  out.openTotal = sum(out.open); out.approvedTotal = sum(out.approved);
   return out;
 }
 export const returnsOf = id => S.txns.filter(t => t.ret === id);
 export const netOf = t => t.a + returnsOf(t.id).reduce((s,r)=>s+r.a,0);
 export const projectTotal = p => p.a + S.txns.filter(t=>t.proj===p.id).reduce((s,t)=>s+t.a,0);
+/** Charges a deposit paid for. */
+export const depositItems = d => S.txns.filter(t => t.kdep === d.id);
 export const inbox = () => S.txns.filter(t => t.inbox).sort((a,b)=> b.d.localeCompare(a.d) || a.id-b.id);
 
 /* ---------- the smart part: suggestions ---------- */
@@ -69,9 +73,9 @@ export function suggest(t){
   const n = norm(t.raw || t.m);
   const G = catGroup();
   // 1. Knauf reimbursement deposit
-  if (/knauf/.test(n) && t.a < 0){
+  if (isKnaufDeposit(t.raw || t.m) && t.a < 0){
     const ks = knaufSummary();
-    const ids = subsetMatch(ks.submitted, -t.a) || subsetMatch([...ks.submitted, ...ks.open], -t.a);
+    const ids = subsetMatch(ks.approved, -t.a) || subsetMatch([...ks.approved, ...ks.open], -t.a);
     return {type:'reimb', ids: ids || [], label: ids ? `Reimburses ${ids.length}` : 'Knauf deposit'};
   }
   // 2. Return to the same merchant
@@ -137,13 +141,13 @@ export const COMMANDS = {
   'tx.update':     {title:'Edit transaction', run:({id, ...f}) => { const t = txById(id); for (const k in f){ if (f[k]===''||f[k]==null) delete t[k]; else t[k]=f[k]; } }},
   'tx.setProject': {title:'Move to project', key:'P', run:({id, proj}) => { const t = txById(id); if (proj) { t.proj=proj; delete t.inbox; } else delete t.proj; }},
   'tx.create':     {title:'New transaction', key:'N', run:(f) => { const t = {id:newId(), d:TODAY, a:0, src:'manual', ...f}; S.txns.push(t); return t.id; }},
-  'tx.delete':     {title:'Delete transaction', run:({id}) => { S.txns = S.txns.filter(t=>t.id!==id); S.txns.forEach(t=>{ if (t.ret===id) delete t.ret; }); }},
-  'knauf.submit':  {title:'Mark Knauf items submitted', run:({ids}) => { for (const id of ids){ const t=txById(id); t.k='submitted'; t.ks=TODAY; } }},
+  'tx.delete':     {title:'Delete transaction', run:({id}) => { S.txns = S.txns.filter(t=>t.id!==id); S.txns.forEach(t=>{ if (t.ret===id) delete t.ret; if (t.kdep===id){ delete t.kdep; delete t.kr; t.k='open'; } }); }},
+  'knauf.approve': {title:'Mark Knauf items approved', run:({ids}) => { for (const id of ids){ const t=txById(id); t.k='approved'; t.ks=TODAY; } }},
   'knauf.reimburse':{title:'Mark Knauf items reimbursed', run:({ids, deposit}) => {
-      for (const id of ids){ const t=txById(id); t.k='reimbursed'; t.kr = TODAY; }
-      if (deposit){ const d = txById(deposit); d.k='deposit'; d.kids = ids; delete d.inbox; }
+      for (const id of ids){ const t=txById(id); t.k='reimbursed'; t.kr = TODAY; if (deposit) t.kdep = deposit; }
+      if (deposit){ const d = txById(deposit); d.k='deposit'; d.x = 1; delete d.inbox; }
   }},
-  'knauf.reopen':  {title:'Move Knauf item back to open', run:({ids}) => { for (const id of ids){ const t=txById(id); t.k='open'; delete t.ks; delete t.kr; } }},
+  'knauf.reopen':  {title:'Move Knauf item back to open', run:({ids}) => { for (const id of ids){ const t=txById(id); t.k='open'; delete t.ks; delete t.kr; delete t.kdep; } }},
   'project.create':{title:'New project', run:({name, year, a=0, when=''}) => { const p={id:'p'+Date.now().toString(36), name, year, a:+a, when}; S.projects.push(p); return p.id; }},
   'project.update':{title:'Edit project', run:({id, ...f}) => Object.assign(S.projects.find(p=>p.id===id), f)},
   'project.delete':{title:'Delete project', run:({id}) => { S.projects = S.projects.filter(p=>p.id!==id); S.txns.forEach(t=>{ if (t.proj===id) delete t.proj; }); }},

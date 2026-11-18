@@ -226,14 +226,15 @@ export function vKnauf(){
   reimb.forEach(t => { const yy = t.d.slice(0,4); ry[yy]=(ry[yy]||0)+t.a; });
   const selKind = [...UI.kSel].map(id=>txById(id)?.k);
   const action = !UI.kSel.size ? '' : selKind.every(k=>k==='open')
-    ? `<button class="btn pri" data-act="kSubmit">Submit ${money(selTotal)}</button>`
-    : selKind.every(k=>k==='submitted') ? `<button class="btn pri" data-act="kReimburse">Reimbursed ${money(selTotal)}</button>`
+    ? `<button class="btn pri" data-act="kApprove">Approved ${money(selTotal)}</button>`
+    : selKind.every(k=>k==='approved') ? `<button class="btn pri" data-act="kReimburse">Reimbursed ${money(selTotal)}</button>`
     : `<button class="btn" data-act="kReopen">Reopen</button>`;
   return `<div class="page"><div class="top"><h1>Knauf</h1><span class="sp"></span>${action}
       <button class="btn" data-act="new" data-k="1">${ic('plus')}New</button></div>
     <div class="hero"><div class="big">${money(ks.outstanding)}</div><div class="cap">owed</div></div>
     <div class="sec"><h2><span>Open</span><span class="t">${money(ks.openTotal)}</span><span class="sp"></span>${ks.open.length?`<button class="btn ghost" data-act="kAll" data-k="open">Select all</button><button class="btn ghost" data-act="kCopy">${ic('copy')}Copy</button>`:''}</h2>${sorted(ks.open).map(krow).join('') || '<div class="row muted"><span class="name">None</span></div>'}</div>
-    <div class="sec"><h2><span>Submitted</span><span class="t">${money(ks.submittedTotal)}</span><span class="sp"></span>${ks.submitted.length?`<button class="btn ghost" data-act="kAll" data-k="submitted">Select all</button>`:''}</h2>${sorted(ks.submitted).map(krow).join('') || '<div class="row muted"><span class="name">None</span></div>'}</div>
+    <div class="sec"><h2><span>Approved</span><span class="t">${money(ks.approvedTotal)}</span><span class="sp"></span>${ks.approved.length?`<button class="btn ghost" data-act="kAll" data-k="approved">Select all</button>`:''}</h2>${sorted(ks.approved).map(krow).join('') || '<div class="row muted"><span class="name">None</span></div>'}</div>
+    ${ks.deposits.length ? `<div class="sec"><h2><span>Reimbursements</span><span class="t">${money(-ks.deposits.reduce((s,t)=>s+t.a,0))}</span></h2>${sorted(ks.deposits).map(d => `<div class="row click ${UI.sel===d.id?'sel':''}" data-tx="${d.id}"><span class="name">${esc(label(d))}</span><span class="sub">${shortDate(d.d)}</span><span class="amt in">+${fmt(Math.abs(d.a))}</span></div>`).join('')}</div>` : ''}
     <div class="sec"><h2 class="click" data-act="kShowR" style="cursor:pointer"><span>Reimbursed</span><span class="t">${Object.entries(ry).sort().reverse().map(([yy,v])=>`${yy} ${money(v,false)}`).join(' · ')}</span><span class="sp"></span>${ic('chev','chev')}</h2>
       ${UI.showReimbursed ? reimb.map(krow).join('') : ''}</div></div>`;
 }

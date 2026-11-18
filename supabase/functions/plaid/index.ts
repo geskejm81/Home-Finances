@@ -9,6 +9,7 @@
 
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { reconcile, MATCH_DAYS } from './match.js';
+import { isKnaufDeposit } from './knauf-rules.js';
 
 const PLAID_URL = 'https://production.plaid.com';
 const cors = {
@@ -58,13 +59,21 @@ async function syncItem(db: SupabaseClient, hh: string, item_id: string, start: 
   }
 
   const posted = added.filter(t => !t.pending && t.date >= start);
-  let inserted = 0, matched = 0;
+  let inserted = 0, matched = 0, deposits = 0;
   if (posted.length) {
     // skip anything already stored (re-sync after a reset)
     const ids = posted.map(t => t.transaction_id);
     const { data: known } = await db.from('transactions').select('external_id').eq('household_id', hh).in('external_id', ids);
     const seen = new Set((known || []).map(r => r.external_id));
-    const fresh = posted.filter(t => !seen.has(t.transaction_id));
+    const all = posted.filter(t => !seen.has(t.transaction_id));
+    // Knauf expense reimbursements: kept out of income and the Inbox; matched to charges in the app.
+    const depositRows = all.filter(t => t.amount < 0 && isKnaufDeposit(t.name)).map(t => ({
+      id: newId(), household_id: hh, date: t.date, merchant: t.merchant_name || t.name, raw: t.name, amount: t.amount,
+      account: t.account_id, source: 'bank', inbox: false, excluded: true, knauf: 'deposit', external_id: t.transaction_id,
+    }));
+    if (depositRows.length) { const { error } = await db.from('transactions').insert(depositRows); if (error) throw new Error(error.message); }
+    deposits = depositRows.length;
+    const fresh = all.filter(t => !(t.amount < 0 && isKnaufDeposit(t.name)));
 
     // unconfirmed spreadsheet rows near the bank window
     const from = new Date(Date.parse(start) - MATCH_DAYS * 864e5).toISOString().slice(0, 10);
@@ -114,7 +123,7 @@ async function syncItem(db: SupabaseClient, hh: string, item_id: string, start: 
 
   await db.from('plaid_tokens').update({ cursor }).eq('item_id', item_id);
   await db.from('plaid_items').update({ status: 'ok', last_error: null, last_synced_at: new Date().toISOString() }).eq('item_id', item_id);
-  return { added: inserted, matched, removed: gone.length };
+  return { added: inserted, matched, deposits, removed: gone.length };
 }
 
 Deno.serve(async (req) => {
@@ -157,11 +166,11 @@ Deno.serve(async (req) => {
 
     if (action === 'sync') {
       const { data: items } = await db.from('plaid_items').select('item_id,institution').eq('household_id', hh);
-      const total = { added: 0, matched: 0, removed: 0, banks: [] as unknown[] };
+      const total = { added: 0, matched: 0, deposits: 0, removed: 0, banks: [] as unknown[] };
       for (const it of items || []) {
         try {
           const r = await syncItem(db, hh, it.item_id, start);
-          total.added += r.added; total.matched += r.matched; total.removed += r.removed;
+          total.added += r.added; total.matched += r.matched; total.deposits += r.deposits; total.removed += r.removed;
           total.banks.push({ institution: it.institution, status: 'ok' });
         } catch (e) {
           const code = (e as PlaidError).code;

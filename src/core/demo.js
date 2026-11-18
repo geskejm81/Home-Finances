@@ -114,7 +114,7 @@ export function demoState(today) {
         for (const [raw, lo, hi] of KNAUF) {
           if (r() < 0.25) continue;
           const d = day(d0 + Math.floor(r() * 3)); if (d > today) continue;
-          push({ d, m: cleanName(raw), raw, a: amt(lo, hi), k: ago >= 2 ? 'reimbursed' : ago === 1 ? 'submitted' : 'open', acct: 'amex', src: 'bank' });
+          push({ d, m: cleanName(raw), raw, a: amt(lo, hi), k: ago >= 2 ? 'reimbursed' : ago === 1 ? 'approved' : 'open', acct: 'amex', src: 'bank' });
         }
       }
     }
@@ -125,11 +125,11 @@ export function demoState(today) {
   bank(wk, 'ARITZIA', 136.38, 'Clothing');
 
   // the bank feed waiting for review (Plaid sign: + out, − in)
-  const submitted = txns.filter(t => t.k === 'submitted').reduce((s, t) => s + t.a, 0);
+  const approved = txns.filter(t => t.k === 'approved').reduce((s, t) => s + t.a, 0);
   const d0 = today, d1 = iso(addDays(end, -1)), d2 = iso(addDays(end, -2));
   const feed = [
     [d0, 'ARITZIA', -68.19, 'visa'],
-    [d0, 'KNAUF INSULATION EXP REIMB', -Math.round(submitted * 100) / 100, 'chk'],
+    [d0, 'KNAUF INSULATION DIRECT-PAY', -Math.round(approved * 100) / 100, 'chk'],
     [d0, 'COURTYARD WACO', 214.06, 'amex'],
     [d1, 'KROGER #932', 143.18, 'visa'],
     [d1, 'AMAZON.COM*9QX21', 86.42, 'visa'],

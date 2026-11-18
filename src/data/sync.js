@@ -46,7 +46,7 @@ export function txToRow(t) {
   return {
     id: t.id, date: t.d, merchant: t.m ?? null, raw: t.raw ?? null, amount: t.a, category: t.c ?? null, note: t.n ?? null,
     person: t.p ?? null, account: t.acct ?? null, source: t.src || 'manual', inbox: !!t.inbox, excluded: !!t.x,
-    knauf: t.k ?? null, knauf_submitted: t.ks ?? null, knauf_reimbursed: t.kr ?? null, knauf_items: t.kids ?? null,
+    knauf: t.k ?? null, knauf_submitted: t.ks ?? null, knauf_reimbursed: t.kr ?? null, knauf_deposit: t.kdep ?? null,
     return_of: t.ret ?? null, split: t.split ?? null, project: t.proj ?? null, external_id: t.ext ?? null,
   };
 }
@@ -54,7 +54,7 @@ export function rowToTx(r) {
   const t = {
     id: Number(r.id), d: r.date, m: r.merchant, raw: r.raw, a: Number(r.amount), c: r.category, n: r.note, p: r.person,
     acct: r.account, src: r.source, inbox: r.inbox ? 1 : null, x: r.excluded ? 1 : null, k: r.knauf, ks: r.knauf_submitted,
-    kr: r.knauf_reimbursed, kids: r.knauf_items?.map(Number), ret: r.return_of == null ? null : Number(r.return_of),
+    kr: r.knauf_reimbursed, kdep: r.knauf_deposit == null ? null : Number(r.knauf_deposit), ret: r.return_of == null ? null : Number(r.return_of),
     split: r.split, proj: r.project, ext: r.external_id,
   };
   for (const k in t) if (t[k] == null) delete t[k];
