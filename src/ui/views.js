@@ -99,7 +99,7 @@ export function vMonth(){
     <div class="hero"><div class="big ${m.left<0?'neg':''}">${money(m.left,false)}</div><div class="cap">left</div></div>
     <div class="tbl"><table class="mt"><thead><tr><th></th><th class="barc">${pace!=null?`<span class="mhead"><span class="today" style="left:${pace*100}%">${shortDate(TODAY)}</span></span>`:''}</th><th>Actual</th><th>${locked?'Budget':'Typical'}</th><th>Difference</th></tr></thead>
       <tbody>${rows}<tr class="left">${cells('Left', m.left, lb, true, '')}</tr></tbody></table></div>
-    ${ks.outstanding>0 ? `<div class="sec"><div class="row click" data-go="knauf"><span class="name">Knauf</span><span class="sub">${ks.open.length+ks.submitted.length} items</span><span class="amt">${fmt(ks.outstanding)}</span></div></div>`:''}
+    ${ks.outstanding>0 ? `<div class="sec"><div class="row click" data-go="knauf"><span class="name">Knauf</span><span class="sub">${ks.open.length+ks.approved.length} items</span><span class="amt">${fmt(ks.outstanding)}</span></div></div>`:''}
   </div>`;
 }
 
