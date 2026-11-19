@@ -8,10 +8,12 @@ Live: https://geskejm81.github.io/Home-Finances/
 
 ```sh
 npm start        # serves http://localhost:8080
-npm test         # node --test
+npm test         # stamps index.html, then node --test
 ```
 
 Pushing to `main` runs the tests, then publishes to GitHub Pages. A failing test blocks the deploy.
+
+`index.html` fingerprints every file it loads (`node scripts/stamp.mjs`), so phones never mix old and new code. `npm test` re-stamps; CI fails if the stamp is stale.
 
 ## Layout
 
