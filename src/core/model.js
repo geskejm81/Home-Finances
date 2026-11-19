@@ -11,7 +11,11 @@ import { S, acctName, catGroup, save, seed, setState, txById } from './store.js'
 /** Does a transaction count toward household totals? */
 export const counts = t => !t.inbox && !t.x && !t.k && !t.proj && !!(t.c || t.split);
 /** Category parts of a transaction (expands splits). */
-export const parts = t => t.split ? t.split.map(s => ({c:s.c, a:s.a})) : [{c:t.c, a:t.a}];
+export const parts = t => t.split ? t.split.map(s => ({c:s.c, a:s.a, p:s.p || t.p})) : [{c:t.c, a:t.a, p:t.p}];
+/** Everyone a transaction is tagged with (the whole charge, or any split part). */
+export const peopleOf = t => [...new Set([t.p, ...(t.split||[]).map(s => s.p)].filter(Boolean))];
+/** Something has been decided for an Inbox row: it can be approved. */
+export const decided = t => !!(t.c || t.split || t.k || t.x || t.proj || t.ret);
 
 export let _agg = null;
 export function agg(){
@@ -39,7 +43,7 @@ export function typical(k, key, isGroup){
 export function knaufSummary(){
   // Knauf statuses: suggested → open → approved → reimbursed. A deposit row is the reimbursement itself.
   const out = {suggested:[], open:[], approved:[], reimbursed:[], deposits:[]};
-  for (const t of S.txns){ if (!t.k) continue; (out[t.k==='deposit'?'deposits':t.k] || []).push(t); }
+  for (const t of S.txns){ if (!t.k || t.inbox) continue; (out[t.k==='deposit'?'deposits':t.k] || []).push(t); }
   const sum = a => a.reduce((s,t)=>s+t.a,0);
   out.outstanding = sum(out.open) + sum(out.approved);
   out.openTotal = sum(out.open); out.approvedTotal = sum(out.approved);
@@ -113,33 +117,35 @@ let _lastId = 0;
 export function newId(){ _lastId = Math.max(_lastId + 1, Date.now()*1000 + Math.floor(Math.random()*1000)); return _lastId; }
 export const COMMANDS = {
   'tx.accept':     {title:'Accept suggestion', key:'Enter', run:({id}) => accept(id)},
-  'tx.acceptAll':  {title:'Accept all suggestions (Knauf ones wait for your tick)', run:() => { let n=0; for (const t of inbox()) { const s=suggest(t); if (s.type==='knauf'){ t.k='suggested'; delete t.inbox; n++; continue; } if (s.type!=='none'){ accept(t.id); n++; } } return n; }},
+  'tx.approve':    {title:'Approve', key:'A', run:({id}) => { const t = txById(id); if (!decided(t)) applySuggestion(id); if (!decided(t)) return false; delete t.inbox; return true; }},
+  'tx.useSuggestion':{title:'Use suggestion', run:({id}) => applySuggestion(id)},
+  'tx.acceptAll':  {title:'Accept all suggestions (Knauf ones wait for your tick)', run:() => { let n=0; for (const t of inbox()) { if (decided(t)) continue; const s=suggest(t); if (s.type==='knauf'){ t.k='suggested'; delete t.inbox; n++; continue; } if (s.type!=='none'){ accept(t.id); n++; } } return n; }},
   'tx.setCategory':{title:'Set category', key:'C', run:({id, c, learn=true}) => {
       const t = txById(id); const G = catGroup();
       if (t.inbox) settleSign(t, c);
-      t.c = c; delete t.split; delete t.k; delete t.x; delete t.inbox;
+      t.c = c; delete t.split; delete t.k; delete t.x;
       if (learn && t.m && t.src==='bank') learnRule(t.raw||t.m, {c});
   }},
   'tx.setKnauf':   {title:'Toggle Knauf', key:'K', run:({id, on}) => {
       const t = txById(id); on = on ?? !(t.k && t.k!=='deposit');
-      if (on){ t.k='open'; delete t.inbox; delete t.c; delete t.split; if (t.m && t.src==='bank') learnRule(t.raw||t.m,{k:1}); }
+      if (on){ t.k='open'; delete t.c; delete t.split; if (t.m && t.src==='bank') learnRule(t.raw||t.m,{k:1}); }
       else { delete t.k; }
   }},
   'tx.setExcluded':{title:'Toggle excluded from totals', key:'X', run:({id, on}) => {
-      const t = txById(id); on = on ?? !t.x; t.x = on ? 1 : 0; if (!on) delete t.x; else delete t.inbox;
+      const t = txById(id); on = on ?? !t.x; t.x = on ? 1 : 0; if (!on) delete t.x;
       if (on && t.m && t.src==='bank') learnRule(t.raw||t.m,{x:1});
   }},
   'tx.linkReturn': {title:'Link return to purchase', key:'R', run:({id, of}) => {
-      const t = txById(id), o = txById(of); t.ret = of; t.c = o.c; t.a = -Math.abs(t.a); delete t.inbox; delete t.k;
+      const t = txById(id), o = txById(of); t.ret = of; t.c = o.c; t.a = -Math.abs(t.a); delete t.k;
       if (o.k) t.k = o.k;
   }},
   'tx.unlinkReturn':{title:'Unlink return', run:({id}) => { delete txById(id).ret; }},
   'tx.split':      {title:'Split transaction', key:'S', run:({id, parts}) => {
       const t = txById(id); if (!parts || parts.length<2){ delete t.split; return; }
-      t.split = parts.map(p=>({c:p.c, a:+(+p.a).toFixed(2)})); delete t.c; delete t.inbox; delete t.k;
+      t.split = parts.map(p=>({c:p.c, a:+(+p.a).toFixed(2), ...(p.p ? {p:p.p} : {})})); delete t.c; delete t.k;
   }},
   'tx.update':     {title:'Edit transaction', run:({id, ...f}) => { const t = txById(id); for (const k in f){ if (f[k]===''||f[k]==null) delete t[k]; else t[k]=f[k]; } }},
-  'tx.setProject': {title:'Move to project', key:'P', run:({id, proj}) => { const t = txById(id); if (proj) { t.proj=proj; delete t.inbox; } else delete t.proj; }},
+  'tx.setProject': {title:'Move to project', key:'P', run:({id, proj}) => { const t = txById(id); if (proj) t.proj=proj; else delete t.proj; }},
   'tx.create':     {title:'New transaction', key:'N', run:(f) => { const t = {id:newId(), d:TODAY, a:0, src:'manual', ...f}; S.txns.push(t); return t.id; }},
   'tx.delete':     {title:'Delete transaction', run:({id}) => { S.txns = S.txns.filter(t=>t.id!==id); S.txns.forEach(t=>{ if (t.ret===id) delete t.ret; if (t.kdep===id){ delete t.kdep; delete t.kr; t.k = t.krep ? 'approved' : 'open'; } }); (S.reports||[]).forEach(r => r.lines.forEach(l => { if (l.tx===id) l.tx = null; if (r.dep===id) r.dep = null; })); }},
   'knauf.approve': {title:'Mark Knauf items approved', run:({ids}) => { for (const id of ids){ const t=txById(id); t.k='approved'; t.ks=TODAY; } }},
@@ -219,7 +225,14 @@ export function learnRule(m, r){
   S.rules = S.rules.filter(x => x.m !== key);
   S.rules.unshift({m:key, ...r});
 }
+/** One tap: take the suggestion and approve. */
 export function accept(id){
+  if (!applySuggestion(id)) return false;
+  delete txById(id).inbox;
+  return true;
+}
+/** Fill in the suggestion without approving (the row stays in the Inbox). */
+export function applySuggestion(id){
   const t = txById(id), s = suggest(t);
   if (s.type==='cat') run('tx.setCategory', {id, c:s.c, learn:false}, true);
   else if (s.type==='knauf') run('tx.setKnauf', {id, on:true}, true);
@@ -277,7 +290,7 @@ export function searchTx(q){
     else if (/^\d{4}-\d{2}$/.test(tok)) list = list.filter(t=>t.d.startsWith(tok));
     else if (MON.some(x=>x.toLowerCase()===tok.slice(0,3)) && tok.length>=3 && MONL.some(x=>x.toLowerCase().startsWith(tok))) { const i = MON.findIndex(x=>x.toLowerCase()===tok.slice(0,3)); list = list.filter(t=>+t.d.slice(5,7)===i+1); }
     else if (GROUPS.some(g=>g.id===tok)) list = list.filter(t => parts(t).some(p=>G[p.c]===tok) && !t.k);
-    else list = list.filter(t => [t.m,t.n,t.c,t.p,catLabel(t),acctName(t.acct)].some(f => f && String(f).toLowerCase().includes(tok)));
+    else list = list.filter(t => [t.m,t.n,t.c,...peopleOf(t),catLabel(t),acctName(t.acct)].some(f => f && String(f).toLowerCase().includes(tok)));
   }
   return list.sort((a,b)=>b.d.localeCompare(a.d) || b.id-a.id);
 }

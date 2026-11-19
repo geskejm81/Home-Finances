@@ -206,6 +206,10 @@ td.chg{background:color-mix(in srgb,var(--accent) 10%,transparent)}
 .split{margin-top:16px;border-top:1px solid var(--line);padding-top:12px}
 .split .sr{display:flex;gap:8px;align-items:center;height:34px}
 .split .sr .v{flex:1}
+.split .sr .v.who{flex:0 0 96px}
+.approve{display:flex;justify-content:flex-end;margin-top:16px;padding-top:12px;border-top:1px solid var(--line)}
+.approve .btn{min-width:140px;justify-content:center}
+.btn[disabled]{opacity:.45;pointer-events:none}
 .split .sr input{width:90px;text-align:right;border-bottom:1px solid var(--line2);height:26px}
 .linked{margin-top:16px;border-top:1px solid var(--line);padding-top:8px}
 /* popover / palette */

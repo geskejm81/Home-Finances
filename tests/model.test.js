@@ -237,3 +237,24 @@ test('recurring: monthly bills are found; one-offs are not', () => {
   assert.equal(st.cadence, 'monthly');
   assert.ok(!names.includes('Annual Membership'), 'yearly with one occurrence is not recurring');
 });
+
+test('Inbox: choices stay until Approve; split parts carry people', () => {
+  fresh();
+  const c = byName('Costco'), [p1, p2] = S.people;
+  run('tx.setCategory', { id: c.id, c: 'Groceries' });
+  assert.ok(txById(c.id).inbox, 'category alone does not approve');
+  run('tx.split', { id: c.id, parts: [{ c: 'Groceries', a: 250, p: p1 }, { c: 'Home Supplies', a: 62.55, p: p2 }] });
+  run('tx.setProject', { id: c.id, proj: S.projects[0]?.id });
+  assert.ok(txById(c.id).inbox, 'split and project do not approve');
+  assert.deepEqual(txById(c.id).split.map(s => s.p), [p1, p2]);
+  const n = inbox().length;
+  assert.equal(run('tx.acceptAll') >= 0 && !!txById(c.id).inbox, true, 'Accept all leaves decided rows alone');
+  assert.ok(run('tx.approve', { id: c.id }));
+  assert.ok(!txById(c.id).inbox);
+  assert.ok(inbox().length < n);
+  // a row with nothing chosen and no suggestion cannot be approved
+  const blank = { id: 424242, d: TODAY, m: 'Zzyzx Unknown', a: 5, src: 'bank', inbox: 1 };
+  S.txns.push(blank);
+  assert.equal(run('tx.approve', { id: blank.id }), false);
+  assert.ok(txById(blank.id).inbox);
+});

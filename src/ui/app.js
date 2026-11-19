@@ -2,7 +2,7 @@
 
 import { GROUPS, TODAY, addYm, dObj, esc, fmt, money, norm, shortDate, ym } from '../core/format.js';
 import { S, acctName, catGroup, label, load, seed, setState, txById } from '../core/store.js';
-import { COMMANDS, depositItems, inbox, knaufSummary, month, netOf, onChange, pivot, projectTotal, returnsOf, run, searchTx, suggest, typical, undo } from '../core/model.js';
+import { COMMANDS, catLabel, decided, peopleOf, depositItems, inbox, knaufSummary, month, netOf, onChange, pivot, projectTotal, returnsOf, run, searchTx, suggest, typical, undo } from '../core/model.js';
 import { UI, VIEWS } from './state.js';
 import { auth, api } from '../data/supabase.js';
 import { createSync } from '../data/sync.js';
@@ -91,11 +91,12 @@ export function renderPanel(){
   const hasM = 'm' in t || t.src!=='sheet';
   const v = (act, inner, ro) => `<div class="v ${ro?'ro':''}" ${act?`data-act="${act}"`:''}>${inner}</div>`;
   let callout = '';
-  if (s && s.type==='return') callout = `<div class="callout">${ic('ret')}<span class="sp">${esc(label(txById(s.of)))} · ${shortDate(txById(s.of).d)} · ${fmt(txById(s.of).a)}</span><button class="btn pri" data-act="accept" data-id="${t.id}">Link</button></div>`;
+  if (s && decided(t) && s.type!=='reimb') callout = '';
+  else if (s && s.type==='return') callout = `<div class="callout">${ic('ret')}<span class="sp">${esc(label(txById(s.of)))} · ${shortDate(txById(s.of).d)} · ${fmt(txById(s.of).a)}</span><button class="btn" data-act="useSuggestion">Link</button></div>`;
   else if (s && s.type==='reimb' && s.ids.length) callout = `<div class="callout">${ic('knauf')}<span class="sp">${s.ids.length} Knauf items · ${money(s.ids.reduce((a,id)=>a+txById(id).a,0))}</span><button class="btn pri" data-act="accept" data-id="${t.id}">Match</button></div>`;
-  else if (s && s.type!=='none') callout = `<div class="callout">${ic('spark')}<span class="sp">${esc(s.label)}</span><button class="btn pri" data-act="accept" data-id="${t.id}">Accept</button></div>`;
+  else if (s && s.type!=='none') callout = `<div class="callout">${ic('spark')}<span class="sp">${esc(s.label)}</span><button class="btn" data-act="useSuggestion">Use</button></div>`;
   const sd = UI.splitDraft;
-  const splitUI = sd ? `<div class="split">${sd.map((r,i)=>`<div class="sr"><div class="v" data-act="pickSplitCat" data-i="${i}">${r.c?esc(r.c):'<span class="ph2">Category</span>'}</div><input value="${r.a}" data-act="splitAmt" data-i="${i}" inputmode="decimal"></div>`).join('')}
+  const splitUI = sd ? `<div class="split">${sd.map((r,i)=>`<div class="sr"><div class="v" data-act="pickSplitCat" data-i="${i}">${r.c?esc(r.c):'<span class="ph2">Category</span>'}</div><div class="v who" data-act="pickSplitPerson" data-i="${i}">${r.p?esc(r.p):`<span class="ph2">${t.p?esc(t.p):'Person'}</span>`}</div><input value="${r.a}" data-act="splitAmt" data-i="${i}" inputmode="decimal"></div>`).join('')}
       <div class="sr"><button class="btn ghost" data-act="splitAdd">${ic('plus')}Add</button><span class="sp" style="flex:1"></span><span style="color:${Math.abs(sd.reduce((a,r)=>a+(+r.a||0),0)-t.a)<0.005?'var(--text2)':'var(--neg)'}">${fmt(sd.reduce((a,r)=>a+(+r.a||0),0))} / ${fmt(t.a)}</span></div>
       <div class="acts"><button class="btn pri" data-act="splitSave">Save split</button><button class="btn ghost" data-act="splitCancel">Cancel</button></div></div>` : '';
   p.innerHTML = `<div class="ph"><span class="sp"></span>
@@ -108,7 +109,7 @@ export function renderPanel(){
         ${t.acct?`<label>Account</label>${v('', esc(acctName(t.acct)), true)}`:''}
         ${t.raw && t.raw!==t.m?`<label>Bank text</label>${v('', `<span style="color:var(--text2)">${esc(t.raw)}</span>`, true)}`:''}
         <label>Category</label>${v('pickCat', t.k? (t.k==='deposit'?'Knauf reimbursement':'Knauf · '+t.k) : t.x ? 'Excluded' : t.split ? t.split.map(x=>esc(x.c)).join(' + ') : t.c ? esc(t.c) : '<span class="ph2">None</span>')}
-        <label>Person</label>${v('pickPerson', t.p ? esc(t.p) : '<span class="ph2">—</span>')}
+        <label>Person</label>${v('pickPerson', t.p ? esc(t.p) + (peopleOf(t).length>1 ? ` <span class="ph2">· split ${esc(peopleOf(t).filter(x=>x!==t.p).join(', '))}</span>` : '') : peopleOf(t).length ? `<span class="ph2">Split · ${esc(peopleOf(t).join(', '))}</span>` : '<span class="ph2">—</span>')}
         <label>Project</label>${v('pickProject', proj ? esc(proj.name) : '<span class="ph2">—</span>')}
         ${hasM ? `<label>Note</label>${v('', `<input value="${esc(t.n||'')}" data-act="edit" data-f="n">`)}` : ''}
       </div>
@@ -120,6 +121,7 @@ export function renderPanel(){
         ${t.a<0 && !t.ret && G[t.c]!=='income' && !t.k ? `<button class="btn" data-act="pickReturn">${ic('ret')}Return of…<kbd>R</kbd></button>`:''}
         ${t.ret ? `<button class="btn" data-act="unlink">Unlink return</button>`:''}
       </div>` : ''}
+      ${t.inbox && !sd ? `<div class="approve"><button class="btn pri" data-act="approve" data-id="${t.id}" ${decided(t) || (s && s.type!=='none') ? '' : 'disabled'}>${ic('check')}Approve<kbd>A</kbd></button></div>` : ''}
       ${orig ? `<div class="linked"><div class="day">Return of</div>${txRow(orig)}</div>` : ''}
       ${rets.length ? `<div class="linked"><div class="day">Returns<span class="sp"></span><span class="t">net ${fmt(netOf(t))}</span></div>${rets.map(r=>txRow(r)).join('')}</div>` : ''}
       ${t.k==='deposit' && depositItems(t).length ? `<div class="linked"><div class="day">Reimbursed</div>${depositItems(t).map(r=>txRow(r)).join('')}</div>` : ''}
@@ -189,7 +191,6 @@ export function pickCategory(anchor, id){
     if (it.value==='__knauf') run('tx.setKnauf', {id, on:true});
     else if (it.value==='__x') run('tx.setExcluded', {id, on:true});
     else { run('tx.setCategory', {id, c:it.value}); if (t.src==='bank') toast(`${label(t)} → ${it.value} from now on`); }
-    afterInboxAction(id);
   });
 }
 export function afterInboxAction(id){
@@ -249,25 +250,33 @@ export const ACT = {
   acceptAll: () => { const n = run('tx.acceptAll'); toast(`${n} accepted`, true); closePanel(false); render(); },
   pickCat: a => pickCategory(a, +(a.dataset.id || UI.sel)),
   pickPerson: a => picker(a, [{label:'—', value:''}, ...S.people.map(p=>({label:p, value:p}))], it => run('tx.update', {id:UI.sel, p:it.value}), {groups:false}),
-  pickProject: a => picker(a, [{label:'—', value:'', group:''}, ...S.projects.slice().sort((x,y)=>y.year-x.year).map(p=>({label:p.name, hint:String(p.year), value:p.id, group:String(p.year)}))], it => { run('tx.setProject', {id:UI.sel, proj:it.value}); afterInboxAction(UI.sel); }),
+  pickProject: a => picker(a, [{label:'—', value:'', group:''}, ...S.projects.slice().sort((x,y)=>y.year-x.year).map(p=>({label:p.name, hint:String(p.year), value:p.id, group:String(p.year)}))], it => run('tx.setProject', {id:UI.sel, proj:it.value})),
   pickReturn: a => {
     const t = txById(UI.sel); const n = norm(t.m||t.n).split(' ')[0];
     const cands = S.txns.filter(o => o.a>0 && o.id!==t.id && o.d<=t.d && (dObj(t.d)-dObj(o.d))/864e5<=180).sort((x,y)=> (norm(y.m||y.n).split(' ')[0]===n) - (norm(x.m||x.n).split(' ')[0]===n) || y.d.localeCompare(x.d)).slice(0,200);
     picker(a, cands.map(o=>({label:label(o), hint:`${shortDate(o.d)} · ${fmt(o.a)}`, value:o.id, group: norm(o.m||o.n).split(' ')[0]===n ? 'Same merchant' : 'Recent'})), it => run('tx.linkReturn', {id:t.id, of:it.value}));
   },
   unlink: () => run('tx.unlinkReturn', {id:UI.sel}),
-  knauf: () => { const id=UI.sel; run('tx.setKnauf', {id}); afterInboxAction(id); },
-  exclude: () => { const id=UI.sel; run('tx.setExcluded', {id}); afterInboxAction(id); },
+  knauf: () => run('tx.setKnauf', {id:UI.sel}),
+  exclude: () => run('tx.setExcluded', {id:UI.sel}),
+  useSuggestion: () => run('tx.useSuggestion', {id:UI.sel}),
+  approve: a => {
+    const id = +(a?.dataset?.id || UI.sel), t = txById(id);
+    if (!run('tx.approve', {id})){ toast('Pick a category first'); return; }
+    toast(`${label(t)} · ${catLabel(t) || 'Approved'}`, true);
+    afterInboxAction(id);
+  },
   del: () => { const t = txById(UI.sel); run('tx.delete', {id:UI.sel}); closePanel(); toast(`Deleted ${label(t)}`, true); },
-  split: () => { const t = txById(UI.sel); UI.splitDraft = [{c:t.c||suggest(t).c||'', a:(t.a/2).toFixed(2)}, {c:'', a:(t.a - +(t.a/2).toFixed(2)).toFixed(2)}]; renderPanel(); },
+  split: () => { const t = txById(UI.sel); UI.splitDraft = t.split ? t.split.map(x=>({c:x.c, a:x.a.toFixed(2), p:x.p||''})) : [{c:t.c||suggest(t).c||'', a:(t.a/2).toFixed(2)}, {c:'', a:(t.a - +(t.a/2).toFixed(2)).toFixed(2)}]; renderPanel(); },
   splitAdd: () => { UI.splitDraft.push({c:'', a:'0'}); renderPanel(); },
   splitCancel: () => { UI.splitDraft=null; renderPanel(); },
+  pickSplitPerson: a => picker(a, [{label:'—', value:''}, ...S.people.map(p=>({label:p, value:p}))], it => { UI.splitDraft[+a.dataset.i].p = it.value; renderPanel(); }, {groups:false}),
   pickSplitCat: a => picker(a, catItems().filter(x=>!x.value.startsWith('__')), it => { UI.splitDraft[+a.dataset.i].c = it.value; renderPanel(); }),
   splitSave: () => {
     const t = txById(UI.sel), d = UI.splitDraft.filter(r=>r.c && +r.a);
     const sum = d.reduce((s,r)=>s + +r.a, 0);
     if (Math.abs(sum - t.a) > 0.005 || d.length<2){ toast(`Parts must add to ${fmt(t.a)}`); return; }
-    const id = t.id; UI.splitDraft=null; run('tx.split', {id, parts:d}); afterInboxAction(id);
+    UI.splitDraft=null; run('tx.split', {id:t.id, parts:d});
   },
   month: a => { const d=+a.dataset.d; UI.month = d===0 ? ym(TODAY) : addYm(UI.month, d); UI.openCat=null; render(); },
   toggleGroup: a => { UI.open[a.dataset.g] = !UI.open[a.dataset.g]; render(); },
@@ -419,16 +428,18 @@ document.addEventListener('keydown', e => {
     if (e.key==='ArrowUp'){ UI.cursor=Math.max(0, UI.cursor-1); if (UI.sel) openTx(list[UI.cursor].id); else render(); e.preventDefault(); return; }
     const t = UI.sel ? txById(UI.sel) : list[UI.cursor];
     if (!t) return;
+    if (e.key==='Enter' && decided(t)){ e.preventDefault(); ACT.approve({dataset:{id:t.id}}); return; }
     if (e.key==='Enter'){ e.preventDefault(); const s=suggest(t); if (s.type==='none') pickCategory(document.querySelector(`[data-tx="${t.id}"] .pill`), t.id); else { UI.sel=t.id; ACT.accept({dataset:{id:t.id}}); } return; }
     if (e.key===' '){ e.preventDefault(); openTx(t.id); return; }
   }
-  if (UI.view==='inbox' && !UI.sel && 'ckxsrp'.includes(k)){ const t = inbox()[UI.cursor]; if (t) openTx(t.id); }
+  if (UI.view==='inbox' && !UI.sel && 'ckxsrpa'.includes(k)){ const t = inbox()[UI.cursor]; if (t) openTx(t.id); }
   const id = UI.sel; if (!id || typeof id!=='number') return;
   if (k==='c'){ e.preventDefault(); pickCategory(document.querySelector('#panel [data-act="pickCat"]'), id); }
   else if (k==='k'){ ACT.knauf(); }
   else if (k==='x'){ ACT.exclude(); }
   else if (k==='s' && txById(id).a>0){ ACT.split(); }
   else if (k==='r' && txById(id).a<0){ ACT.pickReturn(document.querySelector('#panel [data-act="pickReturn"]')); }
+  else if (k==='a' && txById(id).inbox){ ACT.approve({dataset:{id}}); }
   else if (k==='p'){ ACT.pickProject(document.querySelector('#panel [data-act="pickProject"]')); }
 });
 

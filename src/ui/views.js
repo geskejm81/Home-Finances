@@ -3,7 +3,7 @@
 import { GROUPS, MON, MONL, TODAY, addYm, dObj, dayLabel, esc, fmt, money, shortDate, ym } from '../core/format.js';
 import { S, acctName, catGroup, label, txById } from '../core/store.js';
 import { catColor, inChart, topCategories, SLOTS } from '../core/colors.js';
-import { agg, catLabel, counts, depositItems, inbox, knaufSummary, month, netOf, parts, pivot, projectTotal, returnsOf, searchTx, suggest, typical } from '../core/model.js';
+import { agg, catLabel, counts, decided, peopleOf, depositItems, inbox, knaufSummary, month, netOf, parts, pivot, projectTotal, returnsOf, searchTx, suggest, typical } from '../core/model.js';
 import { UI } from './state.js';
 import { recurring } from '../core/recurring.js';
 import { age, lag, leftovers, payable, reportForDeposit, variance } from '../core/knauf.js';
@@ -38,7 +38,7 @@ export const catTag = t => {
 };
 export function txRow(t, extra=''){
   const ret = t.ret ? `<span class="pill">${ic('ret')}${shortDate(txById(t.ret)?.d||t.d)}</span>` : '';
-  const who = t.p ? `<span class="pill hide-m">${esc(t.p)}</span>` : '';
+  const who = peopleOf(t).length ? `<span class="pill hide-m">${esc(peopleOf(t).join(', '))}</span>` : '';
   const note = t.m && t.n ? `<span class="note">${esc(t.n)}</span>` : '';
   const acct = t.acct ? `<span class="note hide-m">${esc(acctName(t.acct))}</span>` : '';
   return `<div class="row tx click ${UI.sel===t.id?'sel':''} ${t.d>TODAY?'muted':''}" data-tx="${t.id}">
@@ -58,12 +58,15 @@ export function byDay(list, rowFn=txRow, totals=false){
 export function vInbox(){
   const list = inbox();
   if (!list.length) return `<div class="page">${linkBanner()}<div class="top"><h1>Inbox</h1></div><div class="empty">${ic('check')}<div>All caught up</div></div></div>`;
-  const ready = list.filter(t => suggest(t).type!=='none').length;
+  const ready = list.filter(t => !decided(t) && suggest(t).type!=='none').length;
   return `<div class="page">${linkBanner()}<div class="top"><h1>Inbox</h1><span class="sp"></span>
     ${ready ? `<button class="btn pri" data-act="acceptAll">${ic('check')}Accept ${ready}</button>` : ''}</div>
     ${byDay(list, t => {
       const s = suggest(t), i = list.indexOf(t);
-      const pill = s.type==='none' ? `<button class="pill" data-act="pickCat" data-id="${t.id}">${s.label}</button>`
+      const who = peopleOf(t).length ? `<span class="pill hide-m">${esc(peopleOf(t).join(', '))}</span>` : '';
+      // Decided rows wait for Approve; undecided rows offer the suggestion (one tap approves it) or a category.
+      const pill = decided(t) ? `${who}${catTag(t)}<button class="icon ok" data-act="approve" data-id="${t.id}" title="Approve">${ic('check')}</button>`
+        : s.type==='none' ? `<button class="pill" data-act="pickCat" data-id="${t.id}">${s.label}</button>`
         : `<button class="pill ${s.type==='knauf'||s.type==='reimb'?'k':'sug'}" data-act="accept" data-id="${t.id}">${s.type==='return'?ic('ret'):''}${esc(s.label)}</button>`;
       return `<div class="row tx click ${UI.sel===t.id||(!UI.sel&&UI.cursor===i)?'sel':''}" data-tx="${t.id}">
         ${avatar(t, s.c)}<span class="main"><span class="name">${esc(t.m)}</span><span class="meta"><span class="note">${esc(acctName(t.acct)||'')}</span></span></span>${pill}${amtCell(t)}</div>`;
@@ -236,7 +239,7 @@ export function vTrends(){
   }
   changes.sort((a,b)=>b[3].localeCompare(a[3]));
   // people
-  const ppl = S.people.map(p => [p, S.txns.filter(t=>t.p===p && counts(t) && t.d.startsWith(String(y))).reduce((s,t)=>s+t.a,0)]).filter(x=>x[1]>0);
+  const ppl = S.people.map(p => [p, S.txns.filter(t=>counts(t) && t.d.startsWith(String(y))).reduce((s,t)=>s+parts(t).filter(x=>x.p===p).reduce((a,x)=>a+x.a,0),0)]).filter(x=>x[1]>0);
   const catsV = S.cats.filter(c=>c.group==='variable'||c.group==='fixed').map(c=>c.name).sort();
   const series = []; for (let i=23;i>=0;i--){ const k = addYm(ym(TODAY), -i); if (agg()[k] || series.length) series.push([k, month(k).cats[UI.trendCat]||0]); }
   const catBud = lockedBudget(y) ? (+lockedBudget(y).lines[UI.trendCat] || 0) : null;
