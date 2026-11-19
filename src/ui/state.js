@@ -15,7 +15,7 @@ export const VIEWS = [
 export const UI = {
   view: 'inbox', sel: null, cursor: 0,
   month: ym(TODAY), open: {variable:true}, openCat: null,
-  year: +TODAY.slice(0,4), yearGroup: 'summary',
+  year: +TODAY.slice(0,4), yearGroup: 'summary', yOpen: {variable:true}, yCat: null, yMonth: null,
   q: '', limit: 150,
   trendCat: 'Groceries',
   kSel: new Set(), showReimbursed: false,

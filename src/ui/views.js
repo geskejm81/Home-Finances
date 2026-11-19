@@ -75,18 +75,38 @@ export function vInbox(){
 
 /* ---------- Month ---------- */
 /** Where the month's money went: donut + legend. Scope toggles between all spending and variable only. */
-function spendCard(k){
-  const scope = UI.donutScope, G = catGroup(), m = month(k);
+function spendCard(m, sub, period){
+  const scope = UI.donutScope, G = catGroup();
   const inScope = c => scope==='variable' ? G[c]==='variable' : (G[c]==='fixed' || G[c]==='variable');
   const cats = Object.entries(m.cats).filter(([c,v]) => inScope(c) && v > 0);
   const total = cats.reduce((s,[,v])=>s+v,0);
   const named = cats.filter(([c]) => inChart(c, scope)).sort((a,b) => topCategories(scope).indexOf(a[0]) - topCategories(scope).indexOf(b[0]));
   const other = cats.filter(([c]) => !inChart(c, scope)).reduce((s,[,v])=>s+v,0);
   const slices = [...named.map(([c,v]) => ({key:c, label:c, value:v, color:catColor(c, scope)})), ...(other>0 ? [{key:'__other', label:'Other', value:other, color:'var(--c-other)'}] : [])];
-  const legend = [...slices].sort((a,b)=>(a.key==='__other')-(b.key==='__other') || b.value-a.value).map(x => `<button class="lg" data-act="donutPick" data-c="${esc(x.key)}"><i style="background:${x.color}"></i><span class="ln">${esc(x.label)}</span><span class="lv">${money(x.value,false)}</span><span class="lp">${total?Math.round(x.value/total*100):0}%</span></button>`).join('');
+  const legend = [...slices].sort((a,b)=>(a.key==='__other')-(b.key==='__other') || b.value-a.value).map(x => `<button class="lg" data-act="donutPick" data-c="${esc(x.key)}" data-p="${period}"><i style="background:${x.color}"></i><span class="ln">${esc(x.label)}</span><span class="lv">${money(x.value,false)}</span><span class="lp">${total?Math.round(x.value/total*100):0}%</span></button>`).join('');
   return `<div class="card spend"><h3>Where it went<span class="sp"></span><span class="seg sm">${[['all','All'],['variable','Variable']].map(([id,n])=>`<button class="${scope===id?'on':''}" data-act="donutScope" data-s="${id}">${n}</button>`).join('')}</span></h3>
-    ${total ? `<div class="sbody">${donut(slices, money(total,false), MON[+k.slice(5)-1])}<div class="legend2">${legend}</div></div>` : `<div class="empty sm">No spending yet</div>`}</div>`;
+    ${total ? `<div class="sbody">${donut(slices, money(total,false), sub)}<div class="legend2">${legend}</div></div>` : `<div class="empty sm">No spending yet</div>`}</div>`;
 }
+// Actual / Budget / Difference table shared by Month and Year.
+const chev = open => `<span class="chev ${open?'open':''}">${ic('chev')}</span>`;
+function budgetCells(pace){
+  // The today mark only means something for day-to-day spending: is it ahead of the period?
+  const meter = (pct, st, paced) => `<span class="meter"><b class="f-${st||'n'}" style="width:${Math.max(0, Math.min(100, pct))}%"></b>${pace!=null && paced?`<i style="left:${pace*100}%"></i>`:''}</span>`;
+  return (name, actual, budget, inv, chv, paced=false) => {
+    const st = status(actual, budget, inv), pct = budget>0 ? actual/budget*100 : (actual>0 ? 100 : 0);
+    const diff = inv ? actual - budget : budget - actual;
+    return `<td class="nm">${chv}<span>${name}</span>${meter(pct, st, paced)}</td><td class="barc">${meter(pct, st, paced)}</td>
+      <td class="num">${fmt(actual,false)}</td><td class="num dim">${budget ? fmt(budget,false) : '–'}</td>
+      <td class="num ${budget ? (diff >= 0 ? 's-g' : 's-r') : ''}">${budget ? fmt(diff,false) : '–'}</td>`;
+  };
+}
+const txRows = (k, c) => S.txns.filter(t => counts(t) && t.d.startsWith(k) && parts(t).some(p => p.c===c)).sort((x, z) => z.d.localeCompare(x.d))
+  .map(t => `<tr class="txr click" data-tx="${t.id}"><td class="nm" colspan="2"><span>${esc(label(t))}</span><span class="dim">${shortDate(t.d)}${t.n && t.m ? ' · '+esc(t.n) : ''}</span></td>
+    <td class="num">${fmt(t.split ? t.split.filter(p => p.c===c).reduce((s, p) => s + p.a, 0) : t.a)}</td><td></td><td></td></tr>`).join('');
+const heroCard = m => `<div class="hero"><div class="big ${m.left<0?'neg':''}">${money(m.left,false)}</div><div class="cap">left</div>
+  <div class="kv"><span>Spent</span><b>${money(m.fixed+m.variable,false)}</b><span>Saved</span><b>${money(m.savings,false)}</b><span>Earned</span><b>${money(m.income,false)}</b></div></div>`;
+const tableHead = (pace, locked, mark) => `<thead><tr><th></th><th class="barc">${pace!=null?`<span class="mhead"><span class="today" style="left:${pace*100}%">${mark}</span></span>`:''}</th><th>Actual</th><th>${locked?'Budget':'Typical'}</th><th>Difference</th></tr></thead>`;
+
 export function vMonth(){
   const k = UI.month, m = month(k), G = catGroup();
   const [y, mo] = k.split('-').map(Number);
@@ -94,17 +114,7 @@ export function vMonth(){
   const pace = isCur ? (+TODAY.slice(8)) / new Date(y, mo, 0).getDate() : null;
   const ks = knaufSummary();
   const locked = !!lockedBudget(y);
-  // The today mark only means something for day-to-day spending: is it ahead of the month?
-  const meter = (pct, st, paced) => `<span class="meter"><b class="f-${st||'n'}" style="width:${Math.max(0, Math.min(100, pct))}%"></b>${pace!=null && paced?`<i style="left:${pace*100}%"></i>`:''}</span>`;
-  // name | bar | actual | budget | difference
-  const cells = (name, actual, budget, inv, chev, paced=false) => {
-    const st = status(actual, budget, inv), pct = budget>0 ? actual/budget*100 : (actual>0 ? 100 : 0);
-    const diff = inv ? actual - budget : budget - actual;
-    return `<td class="nm">${chev}<span>${name}</span>${meter(pct, st, paced)}</td><td class="barc">${meter(pct, st, paced)}</td>
-      <td class="num">${fmt(actual,false)}</td><td class="num dim">${budget ? fmt(budget,false) : '–'}</td>
-      <td class="num ${budget ? (diff >= 0 ? 's-g' : 's-r') : ''}">${budget ? fmt(diff,false) : '–'}</td>`;
-  };
-  const chev = open => `<span class="chev ${open?'open':''}">${ic('chev')}</span>`;
+  const cells = budgetCells(pace);
   const rows = GROUPS.map(g => {
     const inv = isInverse(g.id), open = UI.open[g.id];
     const gb = budgetFor(k, g.id, true).amount;
@@ -119,9 +129,7 @@ export function vMonth(){
       out += `<tr class="cat click" data-act="toggleCat" data-c="${esc(c)}">${cells(esc(c), a, b, inv, chev(o), paced)}</tr>`;
       if (o){ const sv = series(c).map(x=>x[1]).slice(-12), t = trend(sv);
         out += `<tr class="sprow"><td colspan="5"><span class="spk">${spark(sv, t)}<span class="tg tg-${t}">${TREND[t][0]}</span></span><span class="dim">12-mo avg ${money(sv.reduce((s,x)=>s+x,0)/(sv.length||1),false)}</span></td></tr>`; }
-      if (o) out += S.txns.filter(t => counts(t) && ym(t.d)===k && parts(t).some(p => p.c===c)).sort((x, z) => z.d.localeCompare(x.d))
-        .map(t => `<tr class="txr click" data-tx="${t.id}"><td class="nm" colspan="2"><span>${esc(label(t))}</span><span class="dim">${shortDate(t.d)}${t.n && t.m ? ' · '+esc(t.n) : ''}</span></td>
-          <td class="num">${fmt(t.split ? t.split.filter(p => p.c===c).reduce((s, p) => s + p.a, 0) : t.a)}</td><td></td><td></td></tr>`).join('');
+      if (o) out += txRows(k, c);
     }
     return out;
   }).join('');
@@ -133,11 +141,10 @@ export function vMonth(){
       ${!isCur?`<button class="btn ghost" data-act="month" data-d="0">Today</button>`:''}
     </div>
     <div class="mhead2">
-      <div class="hero"><div class="big ${m.left<0?'neg':''}">${money(m.left,false)}</div><div class="cap">left</div>
-        <div class="kv"><span>Spent</span><b>${money(m.fixed+m.variable,false)}</b><span>Saved</span><b>${money(m.savings,false)}</b><span>Earned</span><b>${money(m.income,false)}</b></div></div>
-      ${spendCard(k)}
+      ${heroCard(m)}
+      ${spendCard(m, MON[mo-1], k)}
     </div>
-    <div class="tbl"><table class="mt"><thead><tr><th></th><th class="barc">${pace!=null?`<span class="mhead"><span class="today" style="left:${pace*100}%">${shortDate(TODAY)}</span></span>`:''}</th><th>Actual</th><th>${locked?'Budget':'Typical'}</th><th>Difference</th></tr></thead>
+    <div class="tbl"><table class="mt">${tableHead(pace, locked, shortDate(TODAY))}
       <tbody>${rows}<tr class="left">${cells('Left', m.left, lb, true, '')}</tr></tbody></table></div>
     ${ks.outstanding>0 ? `<div class="sec"><div class="row click" data-go="knauf"><span class="name">Knauf</span><span class="sub">${ks.open.length+ks.approved.length} items</span><span class="amt">${fmt(ks.outstanding)}</span></div></div>`:''}
   </div>`;
@@ -172,9 +179,45 @@ export function vYear(){
       + row('Total', tot, gb?.[g] ?? null, inv, 'left');
   }
   return `<div class="page wide"><div class="top"><h1>Year</h1>
-      <select class="sel" data-act="year">${years.map(v=>`<option ${v===y?'selected':''}>${v}</option>`).join('')}</select><span class="sp"></span>
+      <select class="sel" data-act="year">${years.map(v=>`<option ${v===y?'selected':''}>${v}</option>`).join('')}</select></div>
+    ${yearOverview(y)}
+    <div class="top sub"><h2>By month</h2><span class="sp"></span>
       <div class="seg">${[['summary','Summary'],...GROUPS.map(g=>[g.id,g.name])].map(([id,n])=>`<button class="${g===id?'on':''}" data-act="yearGroup" data-g="${id}">${n}</button>`).join('')}</div></div>
     <div class="tbl"><table><thead><tr><th></th>${MON.map(m=>`<th>${m}</th>`).join('')}<th>Total</th></tr></thead><tbody>${body}</tbody></table></div></div>`;
+}
+
+/** Month-tab metrics for a whole year: groups → categories → months → transactions. */
+function yearOverview(y){
+  const mk = i => `${y}-${String(i+1).padStart(2,'0')}`, ms = MON.map((_, i) => month(mk(i)));
+  const sum = f => ms.reduce((s, m) => s + f(m), 0);
+  const tot = {income: sum(m=>m.income), savings: sum(m=>m.savings), fixed: sum(m=>m.fixed), variable: sum(m=>m.variable), left: sum(m=>m.left), cats: {}};
+  for (const m of ms) for (const c in m.cats) tot.cats[c] = (tot.cats[c] || 0) + m.cats[c];
+  const cy = +TODAY.slice(0,4), start = new Date(y, 0, 1);
+  const pace = y===cy ? (dObj(TODAY) - start) / (new Date(y+1, 0, 1) - start) : null;
+  const cells = budgetCells(pace), bud = (id, grp) => MON.reduce((s, _, i) => s + budgetFor(mk(i), id, grp).amount, 0);
+  const rows = GROUPS.map(g => {
+    const inv = isInverse(g.id), open = UI.yOpen[g.id], paced = g.id==='variable';
+    let out = `<tr class="grp click" data-act="yToggleGroup" data-g="${g.id}">${cells(g.name, tot[g.id], bud(g.id, true), inv, chev(open), paced)}</tr>`;
+    if (!open) return out;
+    const names = S.cats.filter(c => c.group===g.id).map(c => [c.name, tot.cats[c.name] || 0, bud(c.name)])
+      .filter(([, a, b]) => a || b).sort((a, b) => Math.max(b[1], b[2]) - Math.max(a[1], a[2]));
+    for (const [c, a, b] of names){
+      const o = UI.yCat===c;
+      out += `<tr class="cat click" data-act="yToggleCat" data-c="${esc(c)}">${cells(esc(c), a, b, inv, chev(o), paced)}</tr>`;
+      if (!o) continue;
+      MON.forEach((_, i) => {
+        const k = mk(i), ma = ms[i].cats[c] || 0, mb = budgetFor(k, c).amount;
+        if (!ma && !mb) return;
+        const mo = UI.yMonth===k;
+        out += `<tr class="mon click" data-act="yToggleMonth" data-k="${k}">${cells(MONL[i], ma, mb, inv, ma ? chev(mo) : '')}</tr>`;
+        if (mo) out += txRows(k, c);
+      });
+    }
+    return out;
+  }).join('');
+  return `<div class="mhead2">${heroCard(tot)}${spendCard(tot, String(y), String(y))}</div>
+    <div class="tbl"><table class="mt">${tableHead(pace, !!lockedBudget(y), 'Today')}
+      <tbody>${rows}<tr class="left">${cells('Left', tot.left, bud('left', true), true, '')}</tr></tbody></table></div>`;
 }
 
 /* ---------- Ledger ---------- */

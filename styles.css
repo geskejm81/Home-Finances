@@ -151,6 +151,8 @@ tr.left td,tr.left td:first-child{background:var(--hover);font-weight:600}
 .mt .barc{width:34%;min-width:140px}
 .mt tr.grp td{font-weight:600;font-size:14px;height:42px}
 .mt tr.cat td.nm{padding-left:28px}
+.mt tr.mon td.nm{padding-left:50px}
+.mt tr.mon td{font-size:13px}
 .mt tr.txr td{color:var(--text2)}
 .mt tr.txr td.nm{padding-left:50px}
 .mt tr.txr td.nm .dim{margin-left:8px}
@@ -302,7 +304,7 @@ body.gated .side,body.gated .tabs{display:none!important}
   .mt td.nm{max-width:132px;overflow:hidden;text-overflow:ellipsis}
   .mt tr.grp td{font-size:13.5px}
   .tbl{margin:0 -4px}
-  .mt tr.cat td.nm{padding-left:16px}.mt tr.txr td.nm{padding-left:26px}
+  .mt tr.cat td.nm{padding-left:16px}.mt tr.mon td.nm{padding-left:26px}.mt tr.txr td.nm{padding-left:26px}
   .mt tr.txr td.nm .dim{display:block;margin:0}
   .top{flex-wrap:wrap}
   .reason{width:100%}
@@ -391,3 +393,8 @@ body.gated .side,body.gated .tabs{display:none!important}
 .banner .sp{flex:1}
 .row .sub b{color:var(--text);font-weight:600}
 .row .amt s{color:var(--text3);font-weight:400;margin-right:6px}
+
+.top.sub{margin-top:28px}
+.top.sub h2{font-size:15px;font-weight:600;margin:0}
+.mt tr.mon ~ tr.txr td.nm{padding-left:72px}
+@media (max-width:700px){.mt tr.mon ~ tr.txr td.nm{padding-left:36px}}
