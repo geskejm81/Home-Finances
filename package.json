@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "start": "python3 -m http.server 8080",
-    "test": "node --test"
+    "stamp": "node scripts/stamp.mjs",
+    "test": "node scripts/stamp.mjs && node --test"
   }
 }
