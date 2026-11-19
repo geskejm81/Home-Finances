@@ -83,8 +83,8 @@ function spendCard(m, sub, period){
   const named = cats.filter(([c]) => inChart(c, scope)).sort((a,b) => topCategories(scope).indexOf(a[0]) - topCategories(scope).indexOf(b[0]));
   const other = cats.filter(([c]) => !inChart(c, scope)).reduce((s,[,v])=>s+v,0);
   const slices = [...named.map(([c,v]) => ({key:c, label:c, value:v, color:catColor(c, scope)})), ...(other>0 ? [{key:'__other', label:'Other', value:other, color:'var(--c-other)'}] : [])];
-  const legend = [...slices].sort((a,b)=>(a.key==='__other')-(b.key==='__other') || b.value-a.value).map(x => `<button class="lg" data-act="donutPick" data-c="${esc(x.key)}" data-p="${period}"><i style="background:${x.color}"></i><span class="ln">${esc(x.label)}</span><span class="lv">${money(x.value,false)}</span><span class="lp">${total?Math.round(x.value/total*100):0}%</span></button>`).join('');
-  return `<div class="card spend"><h3>Where it went<span class="sp"></span><span class="seg sm">${[['all','All'],['variable','Variable']].map(([id,n])=>`<button class="${scope===id?'on':''}" data-act="donutScope" data-s="${id}">${n}</button>`).join('')}</span></h3>
+  const legend = [...slices].sort((a,b)=>(a.key==='__other')-(b.key==='__other') || b.value-a.value).map(x => `<button class="lg" data-act="donutPick" data-c="${esc(x.key)}"><i style="background:${x.color}"></i><span class="ln">${esc(x.label)}</span><span class="lv">${money(x.value,false)}</span><span class="lp">${total?Math.round(x.value/total*100):0}%</span></button>`).join('');
+  return `<div class="card spend" data-p="${period}"><h3>Where it went<span class="sp"></span><span class="seg sm">${[['all','All'],['variable','Variable']].map(([id,n])=>`<button class="${scope===id?'on':''}" data-act="donutScope" data-s="${id}">${n}</button>`).join('')}</span></h3>
     ${total ? `<div class="sbody">${donut(slices, money(total,false), sub)}<div class="legend2">${legend}</div></div>` : `<div class="empty sm">No spending yet</div>`}</div>`;
 }
 // Actual / Budget / Difference table shared by Month and Year.

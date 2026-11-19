@@ -335,7 +335,7 @@ export const ACT = {
   },
   theme: () => setTheme(isDark() ? 'light' : 'dark'),
   donutScope: a => { UI.donutScope = a.dataset.s; render(); },
-  donutPick: a => { const c = a.dataset.c; const p = a.dataset.p || UI.month; UI.q = c==='__other' ? p : `"${c}" ${p}`; go('ledger'); },
+  donutPick: a => { const c = a.dataset.c; const p = a.closest('[data-p]')?.dataset.p || UI.month; UI.q = c==='__other' ? p : `"${c}" ${p}`; go('ledger'); },
   kConfirm: a => { run('knauf.confirm', {ids:[+a.dataset.id]}); },
   kDismiss: a => { run('knauf.dismiss', {ids:[+a.dataset.id]}); toast('Moved to Inbox', true); },
   kConfirmAll: () => { const ids = knaufSummary().suggested.map(t=>t.id); run('knauf.confirm', {ids}); toast(`${ids.length} confirmed`, true); },
